@@ -8,8 +8,9 @@ public class InternetOffer {
     private int speed;
     private int monthlyCostInCent;
     private int afterTwoYearsMonthlyCost;
+    private int contractDurationInMonths;
+    private String connectionType;
 
-    //TODO clean up unused ??
     //Constructors
     public InternetOffer() {}
 
@@ -19,6 +20,18 @@ public class InternetOffer {
         this.speed = speed;
         this.monthlyCostInCent = monthlyCostInCent;
         this.afterTwoYearsMonthlyCost = afterTwoYearsMonthlyCost;
+        this.contractDurationInMonths = 24;
+        this.connectionType = "DSL";
+    }
+    // Constructor with all fields
+    public InternetOffer(int productId, String providerName, int speed, int monthlyCostInCent, int afterTwoYearsMonthlyCost, int contractDurationInMonths, String connectionType) {
+        this.productId = productId;
+        this.providerName = providerName;
+        this.speed = speed;
+        this.monthlyCostInCent = monthlyCostInCent;
+        this.afterTwoYearsMonthlyCost = afterTwoYearsMonthlyCost;
+        this.contractDurationInMonths = contractDurationInMonths;
+        this.connectionType = connectionType;
     }
 
     //Getters & Setters
@@ -54,6 +67,18 @@ public class InternetOffer {
     }
     public void setAfterTwoYearsMonthlyCost(int afterTwoYearsMonthlyCost) {
         this.afterTwoYearsMonthlyCost = afterTwoYearsMonthlyCost;
+    }
+    public int getContractDurationInMonths() {
+        return contractDurationInMonths;
+    }
+    public void setContractDurationInMonths(int contractDurationInMonths) {
+        this.contractDurationInMonths = contractDurationInMonths;
+    }
+    public String getConnectionType() {
+        return connectionType;
+    }
+    public void setConnectionType(String connectionType) {
+        this.connectionType = connectionType;
     }
 
     @Override

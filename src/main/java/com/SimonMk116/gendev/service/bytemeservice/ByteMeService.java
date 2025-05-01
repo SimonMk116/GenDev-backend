@@ -2,32 +2,37 @@ package com.SimonMk116.gendev.service.bytemeservice;
 
 import com.SimonMk116.gendev.dto.SearchRequests;
 import com.SimonMk116.gendev.model.InternetOffer;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.http.*;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.StringReader;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.*;
-import java.net.URLEncoder;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 
 @Service
 public class ByteMeService {
     //TODO change from hard coded
+    private static final Logger logger = LoggerFactory.getLogger(ByteMeService.class);
     private static final String BYTEME_API_URL = "https://byteme.gendev7.check24.fun/app/api/products/data";
     private static final String API_KEY = "0EA2A2AFFD028864EA97057487F3FCAB";
+    private static final int MAX_RETRIES = 3;
+    private static final long RETRY_DELAY_MS = 1000;
 
     public Collection<InternetOffer> findOffers(String street, String houseNumber, String city, String plz) {
-        // Mock some sample offers for testing
         SearchRequests request = new SearchRequests(street, houseNumber, city, plz);
-
         Collection<InternetOffer> allOffers = new ArrayList<>(getOffersFromProviderByteMe(request));
-        System.out.println("Results ByteMe: " + allOffers);
-
         return allOffers;
     }
 
@@ -42,30 +47,52 @@ public class ByteMeService {
      *         or an empty list if an error occurs
      */
     public Collection<InternetOffer> getOffersFromProviderByteMe(SearchRequests request) {
-        try {
-            // --- Build the request URL with encoded query parameters ---
-            String url = BYTEME_API_URL
-                    + "?street=" + URLEncoder.encode(request.getStreet(), StandardCharsets.UTF_8)
-                    + "&houseNumber=" + URLEncoder.encode(request.getHouseNumber(),StandardCharsets.UTF_8)
-                    + "&city=" + URLEncoder.encode(request.getCity(),StandardCharsets.UTF_8)
-                    + "&plz=" + URLEncoder.encode(request.getPlz(), StandardCharsets.UTF_8);
-            // --- Set up HTTP headers including API key ---
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("X-API-Key", API_KEY);
+        // --- Build the request URL with encoded query parameters ---
+        String url = BYTEME_API_URL
+                + "?street=" + URLEncoder.encode(request.getStreet(), StandardCharsets.UTF_8)
+                + "&houseNumber=" + URLEncoder.encode(request.getHouseNumber(), StandardCharsets.UTF_8)
+                + "&city=" + URLEncoder.encode(request.getCity(), StandardCharsets.UTF_8)
+                + "&plz=" + URLEncoder.encode(request.getPlz(), StandardCharsets.UTF_8);
+        // --- Set up HTTP headers including API key ---
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-API-Key", API_KEY);
+        // --- Send the GET request to the ByteMe API ---
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        RestTemplate restTemplate = new RestTemplate();
+        int retryCount = 0;
 
-            // --- Send the GET request to the ByteMe API ---
-            HttpEntity<String> entity = new HttpEntity<>(headers);
-            RestTemplate restTemplate = new RestTemplate();
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-
-            // --- Parse the CSV response into InternetOffer objects ---
-            return parseCsv(response.getBody());
-
-        } catch (Exception e) {
-            // Log and return an empty list on failure
-            System.err.println("Error: Provider ByteMe failed" + e.getMessage());
-            return Collections.emptyList();
+        while (retryCount < MAX_RETRIES) {
+            try {
+                ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+                return parseCsv(response.getBody());
+            } catch (HttpServerErrorException e) {
+                if (e.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR || e.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE) {
+                    retryCount++;
+                    logger.warn("ByteMe API - Received " +e.getStatusCode() + "error. Retrying... (Attempt " + retryCount + "/" + MAX_RETRIES + ")");
+                    try {
+                        Thread.sleep(RETRY_DELAY_MS);
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        return Collections.emptyList();
+                    }
+                } else {
+                    logger.warn("ByteMe API - HTTP Server Error (" + e.getStatusCode() + "). Not retrying.");
+                    break; // Exit retry loop for non-500 server errors
+                }
+            } catch (RestClientException e) {
+                retryCount++;
+                logger.warn("ByteMe API - Request failed (Attempt " + retryCount + "/" + MAX_RETRIES + "): " + e.getMessage() + ". Retrying...");
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    return Collections.emptyList();
+                }
+            }
         }
+
+        logger.warn("ByteMe API - Max retries reached. Failed to get offers.");
+        return Collections.emptyList();
     }
 
     /**
@@ -101,14 +128,15 @@ public class ByteMeService {
             // --- Parse each record (CSV row) ---
             for (CSVRecord record : parser) {
                 // --- Safety check: Ensure mandatory fields are not empty ---
-                if (record.get("productId").isEmpty() || record.get("providerName").isEmpty() ||
-                        record.get("speed").isEmpty() || record.get("monthlyCostInCent").isEmpty() ||
-                        record.get("afterTwoYearsMonthlyCost").isEmpty()) {
+                if (isNullOrEmpty(record.get("productId")) ||
+                        isNullOrEmpty(record.get("providerName")) ||
+                        isNullOrEmpty(record.get("speed")) ||
+                        isNullOrEmpty(record.get("monthlyCostInCent")) ||
+                        isNullOrEmpty(record.get("afterTwoYearsMonthlyCost"))) {
 
-                            System.err.println("Warning: Incomplete product data in ByteMe CSV. Record: " + record);
-                            continue;
+                    logger.warn("Warning: Incomplete product data in ByteMe CSV. Record: " + record);
+                    continue;
                 }
-
                 // --- Map CSV fields to InternetOffer object ---
                 InternetOffer offer = new InternetOffer(
                         Integer.parseInt(record.get("productId")),
@@ -121,13 +149,13 @@ public class ByteMeService {
             }
         } catch (Exception e) {
             // --- Handle any parsing errors ---
-            System.err.println("Error parsing CSV: " + e.getMessage());
+            logger.warn("Error parsing CSV: " + e.getMessage());
         }
         return offers;
     }
 
-
-
-
+    private boolean isNullOrEmpty(String s) {
+        return s == null || s.isEmpty();
+    }
 
 }

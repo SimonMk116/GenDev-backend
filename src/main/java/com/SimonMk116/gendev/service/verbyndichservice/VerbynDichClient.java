@@ -1,0 +1,93 @@
+package com.SimonMk116.gendev.service.verbyndichservice;
+
+import com.SimonMk116.gendev.dto.VerbynDichResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.*;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Component
+public class VerbynDichClient {
+
+    private static final Logger logger = LoggerFactory.getLogger(VerbynDichClient.class);
+    private final RestTemplate restTemplate;
+    private final String apiKey = "11F858DA2D90231E7F0015C9093FEF8436BBC148DA4BE27FB8D23EA9F49841CB";  // Provided API key
+    private static final int MAX_RETRIES = 3;
+    private static final long RETRY_DELAY_MS = 500;
+
+    public VerbynDichClient(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    public List<VerbynDichResponse> getOffers(String street, String houseNumber, String city, String plz, int page) {
+        String address = street + ";" + houseNumber + ";" + city + ";" + plz;
+        String url = String.format(
+                "https://verbyndich.gendev7.check24.fun/check24/data?apiKey=%s&page=%d",
+                apiKey, page
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.TEXT_PLAIN);
+        HttpEntity<String> entity = new HttpEntity<>(address, headers);
+        List<VerbynDichResponse> responseList = new ArrayList<>();
+        int retryCount = 0;
+
+        while (retryCount < MAX_RETRIES) {
+            // Make the POST request
+            try {
+                ResponseEntity<VerbynDichResponse> response = restTemplate.exchange(url, HttpMethod.POST, entity, VerbynDichResponse.class);
+                if (response.getBody() != null && response.getBody().isValid()) {
+                    responseList.add(response.getBody());
+                    //System.out.println("Response body: " + response.getBody());
+                    return responseList;    // Successful response, return immediately
+                }
+                return responseList;  // Even if not valid, return empty or partial
+            } catch (HttpServerErrorException e) {
+                if (e.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR) {
+                    retryCount++;
+                    logger.warn("Received 500 error for page " + page + " (Attempt " + retryCount + "/" + MAX_RETRIES + ")");
+                    try {
+                        Thread.sleep(RETRY_DELAY_MS);
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        return responseList; // Return whatever we might have
+                    }
+                } else {
+                    logger.warn("HTTP Server Error (" + e.getStatusCode() + ") for page " + page + ". Not retrying.");
+                    break; // Don't retry other server errors
+                }
+            } catch (Exception e) {
+                retryCount++;
+                logger.warn("Request failed for page " + page + " (Attempt " + retryCount + "/" + MAX_RETRIES + "): " + e.getMessage() + ". Retrying in " + RETRY_DELAY_MS + "ms...");
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    return responseList; // Return whatever we might have
+                }
+            }
+        }
+        logger.warn("Max retries reached for page " + page + ". Skipping this page.");
+        return responseList; // Return whatever we might have after retries
+    }
+
+    public List<VerbynDichResponse> getAllOffers(String street, String houseNumber, String city, String plz) {
+        List<VerbynDichResponse> allOffers = new ArrayList<>();
+        int page = 0;
+        List<VerbynDichResponse> pageOffers;
+        do {
+            pageOffers = getOffers(street, houseNumber, city, plz, page);
+            allOffers.addAll(pageOffers);
+            page++;
+        } while (!pageOffers.isEmpty() && !pageOffers.getLast().isLast());
+
+        return allOffers;
+    }
+
+
+}

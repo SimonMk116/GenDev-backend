@@ -5,15 +5,25 @@ public class SearchRequests {
     private String houseNumber;
     private String city;
     private String plz;
+    private boolean wantsFibre;
 
     //Constructors
     public SearchRequests() {}
+
 
     public SearchRequests(String street, String houseNumber, String city, String plz) {
         this.street = street;
         this.houseNumber = houseNumber;
         this.city = city;
         this.plz = plz;
+    }
+
+    public SearchRequests(String street, String houseNumber, String city, String plz, Boolean wantsFibre) {
+        this.street = street;
+        this.houseNumber = houseNumber;
+        this.city = city;
+        this.plz = plz;
+        this.wantsFibre = wantsFibre;
     }
 
     //Getters and setters
@@ -38,5 +48,13 @@ public class SearchRequests {
     }
     public void setPlz(String plz) {
         this.plz = plz;
+    }
+
+    public boolean isWantsFibre() {
+        return wantsFibre;
+    }
+
+    public void setWantsFibre(boolean wantsFibre) {
+        this.wantsFibre = wantsFibre;
     }
 }
