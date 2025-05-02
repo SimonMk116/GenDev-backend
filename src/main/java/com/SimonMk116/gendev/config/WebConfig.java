@@ -11,6 +11,7 @@ public class WebConfig implements WebMvcConfigurer {
         // This will allow CORS for all endpoints in your application
         registry.addMapping("/**")
                 .allowedOrigins("http://localhost:5173")  // React dev server URL (adjust)
+                .allowedOrigins("https://gendev-frontend.onrender.com")
                 .allowedMethods("GET", "POST", "PUT", "DELETE")
                 .allowedHeaders("*")
                 .allowCredentials(true);
