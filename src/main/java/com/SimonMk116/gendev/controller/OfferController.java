@@ -41,10 +41,10 @@ public class OfferController {
 
     @GetMapping
     public ResponseEntity<Collection<InternetOffer>> getOffers(
-         @RequestParam String street,
-         @RequestParam String houseNumber,
-         @RequestParam String city,
-         @RequestParam String plz) throws ExecutionException, InterruptedException{
+            @RequestParam String street,
+            @RequestParam String houseNumber,
+            @RequestParam String city,
+            @RequestParam String plz) throws ExecutionException, InterruptedException{
 
         //build address, currently only for ServusSpeed
         System.out.println("Received API call with params: " + street + ", " + houseNumber + ", " + city + ", " + plz);

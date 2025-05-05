@@ -2,6 +2,7 @@ package com.SimonMk116.gendev.service.verbyndichservice;
 
 import com.SimonMk116.gendev.dto.VerbynDichResponse;
 import com.SimonMk116.gendev.model.InternetOffer;
+import com.SimonMk116.gendev.model.RequestAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

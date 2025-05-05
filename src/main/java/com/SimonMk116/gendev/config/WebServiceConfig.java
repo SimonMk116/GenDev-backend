@@ -1,6 +1,7 @@
 package com.SimonMk116.gendev.config;
 
 import com.SimonMk116.gendev.service.webwunderservice.WebWunderClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
@@ -19,6 +20,11 @@ import java.net.URISyntaxException;
 @Configuration
 public class WebServiceConfig {
 
+    @Value("${provider.webwunder.endpoint}")
+    private String endpoint;
+    @Value("${provider.webwunder.api-key}")
+    private String apiKey;
+
     @Bean
     public Jaxb2Marshaller marshaller() {
         Jaxb2Marshaller marshaller = new Jaxb2Marshaller();
@@ -31,10 +37,10 @@ public class WebServiceConfig {
         WebServiceTemplate template = new WebServiceTemplate();
         template.setMarshaller(marshaller);
         template.setUnmarshaller(marshaller);
-        template.setDefaultUri("https://webwunder.gendev7.check24.fun/endpunkte/soap/ws");
+        template.setDefaultUri(endpoint);
         // Add custom interceptor
         template.setInterceptors(new ClientInterceptor[]{
-                new HttpHeaderInterceptor()});
+                new HttpHeaderInterceptor(apiKey)});
         return template;
     }
 
@@ -46,17 +52,19 @@ public class WebServiceConfig {
     }
 
     static class HttpHeaderInterceptor implements ClientInterceptor {
-        //TODO: change from hard coded
-        private final String API_KEY = "38A8D5853D7546C353A951CB6A9B421264B9969194E0BDB4D06604EAF5D5F8B1335CA2E9449CCA494E197589EBD9E3ED03C2A25348316CD817A18F062E2E4C51";
+
+        private final String apiKey;
+        public HttpHeaderInterceptor(String apiKey) {
+            this.apiKey = apiKey;
+        }
 
         @Override
         public boolean handleRequest(MessageContext messageContext) {
             try {
                 TransportContext context = TransportContextHolder.getTransportContext();
                 HttpUrlConnection connection = (HttpUrlConnection) context.getConnection();
-                String uri = connection.getUri().toString();
                 if (connection.getUri().toString().startsWith("https://webwunder.gendev7.check24.fun/")) {  //is api connection
-                    connection.addRequestHeader("X-Api-Key", API_KEY);
+                    connection.addRequestHeader("X-Api-Key", apiKey);
                 }
             } catch (IOException | URISyntaxException e) {
                 throw new RuntimeException("Failed to add API key header",e);
@@ -68,12 +76,10 @@ public class WebServiceConfig {
         public boolean handleResponse(MessageContext messageContext) {
             return true;
         }
-
         @Override
         public boolean handleFault(MessageContext messageContext) {
             return true;
         }
-
         @Override
         public void afterCompletion(MessageContext messageContext, Exception e) throws WebServiceClientException {
         }

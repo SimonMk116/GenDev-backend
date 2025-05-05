@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpServerErrorException;
@@ -19,10 +20,14 @@ import java.time.Instant;
 @Component
 public class PingPerfectClient {
 
+    @Value("${provider.pingperfect.api-url}")
+    private String apiUrl;
+    @Value("${provider.pingperfect.client-id}")
+    private String clientId;
+    @Value("${provider.pingperfect.signature-secret}")
+    private String signatureSecret;
+
     private static final Logger logger = LoggerFactory.getLogger(PingPerfectClient.class);
-    private static final String API_URL = "https://pingperfect.gendev7.check24.fun/internet/angebote/data";
-    private static final String CLIENT_ID = "E7A44CCA";
-    private static final String SIGNATURE_SECRET = "9737F0CAA779F3F141C3D2A505D605A6";
 
     private final RestTemplate restTemplate;
     private static final int MAX_RETRIES = 3;
@@ -47,7 +52,7 @@ public class PingPerfectClient {
                 // 3. Set up headers
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
-                headers.set("X-Client-Id", CLIENT_ID);
+                headers.set("X-Client-Id", clientId);
                 headers.set("X-Timestamp", timestamp);
                 headers.set("X-Signature", signature);
 
@@ -55,7 +60,7 @@ public class PingPerfectClient {
 
                 // 4. Send the request to the API and receive the response
                 ResponseEntity<JsonNode> response = restTemplate.exchange(
-                        API_URL,
+                        apiUrl,
                         HttpMethod.POST,
                         entity,
                         JsonNode.class
@@ -116,7 +121,7 @@ public class PingPerfectClient {
 
         // Compute HMAC-SHA256 Signature
         Mac mac = Mac.getInstance("HmacSHA256");
-        SecretKeySpec secretKey = new SecretKeySpec(SIGNATURE_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        SecretKeySpec secretKey = new SecretKeySpec(signatureSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         mac.init(secretKey);
         byte[] hashBytes = mac.doFinal(dataToSign.getBytes(StandardCharsets.UTF_8));
 

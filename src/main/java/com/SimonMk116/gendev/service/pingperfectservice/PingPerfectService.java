@@ -44,7 +44,7 @@ public class PingPerfectService {
                 InternetOffer offer = new InternetOffer();
                 offer.setProviderName(providerName);
                 offer.setMonthlyCostInCent(monthlyCost);
-                offer.setAfterTwoYearsMonthlyCost(afterTwoYearsCost);   //TODO this and Product ID empty
+                offer.setAfterTwoYearsMonthlyCost(afterTwoYearsCost);   //TODO this and Product ID
                 offer.setSpeed(speed);
 
                 internetOffers.add(offer);

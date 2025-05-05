@@ -3,6 +3,7 @@ package com.SimonMk116.gendev.service.verbyndichservice;
 import com.SimonMk116.gendev.dto.VerbynDichResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpServerErrorException;
@@ -14,9 +15,11 @@ import java.util.List;
 @Component
 public class VerbynDichClient {
 
+    @Value("${provider.verbyndich.api-key}")
+    private String apiKey;
+
     private static final Logger logger = LoggerFactory.getLogger(VerbynDichClient.class);
     private final RestTemplate restTemplate;
-    private final String apiKey = "11F858DA2D90231E7F0015C9093FEF8436BBC148DA4BE27FB8D23EA9F49841CB";  // Provided API key
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_DELAY_MS = 500;
 

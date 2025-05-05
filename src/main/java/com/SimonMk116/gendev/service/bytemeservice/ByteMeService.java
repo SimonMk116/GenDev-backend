@@ -7,6 +7,7 @@ import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpServerErrorException;
@@ -23,10 +24,13 @@ import java.util.HashSet;
 
 @Service
 public class ByteMeService {
-    //TODO change from hard coded
+    @Value("${provider.byteme.api-key}")
+    private String apiKey;
+
     private static final Logger logger = LoggerFactory.getLogger(ByteMeService.class);
-    private static final String BYTEME_API_URL = "https://byteme.gendev7.check24.fun/app/api/products/data";
-    private static final String API_KEY = "0EA2A2AFFD028864EA97057487F3FCAB";
+
+    @Value("${provider.byteme.api-url}")
+    private String apiUrl;
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_DELAY_MS = 1000;
 
@@ -48,14 +52,14 @@ public class ByteMeService {
      */
     public Collection<InternetOffer> getOffersFromProviderByteMe(SearchRequests request) {
         // --- Build the request URL with encoded query parameters ---
-        String url = BYTEME_API_URL
+        String url = apiUrl
                 + "?street=" + URLEncoder.encode(request.getStreet(), StandardCharsets.UTF_8)
                 + "&houseNumber=" + URLEncoder.encode(request.getHouseNumber(), StandardCharsets.UTF_8)
                 + "&city=" + URLEncoder.encode(request.getCity(), StandardCharsets.UTF_8)
                 + "&plz=" + URLEncoder.encode(request.getPlz(), StandardCharsets.UTF_8);
         // --- Set up HTTP headers including API key ---
         HttpHeaders headers = new HttpHeaders();
-        headers.set("X-API-Key", API_KEY);
+        headers.set("X-API-Key", apiKey);
         // --- Send the GET request to the ByteMe API ---
         HttpEntity<String> entity = new HttpEntity<>(headers);
         RestTemplate restTemplate = new RestTemplate();
@@ -128,11 +132,12 @@ public class ByteMeService {
             // --- Parse each record (CSV row) ---
             for (CSVRecord record : parser) {
                 // --- Safety check: Ensure mandatory fields are not empty ---
-                if (isNullOrEmpty(record.get("productId")) ||
-                        isNullOrEmpty(record.get("providerName")) ||
-                        isNullOrEmpty(record.get("speed")) ||
-                        isNullOrEmpty(record.get("monthlyCostInCent")) ||
-                        isNullOrEmpty(record.get("afterTwoYearsMonthlyCost"))) {
+
+                if (isNullOrEmpty(record,"productId") ||
+                        isNullOrEmpty(record,"providerName") ||
+                        isNullOrEmpty(record,"speed") ||
+                        isNullOrEmpty(record,"monthlyCostInCent") ||
+                        isNullOrEmpty(record,"afterTwoYearsMonthlyCost")) {
 
                     logger.warn("Warning: Incomplete product data in ByteMe CSV. Record: " + record);
                     continue;
@@ -154,8 +159,14 @@ public class ByteMeService {
         return offers;
     }
 
-    private boolean isNullOrEmpty(String s) {
-        return s == null || s.isEmpty();
+    private boolean isNullOrEmpty(CSVRecord record, String fieldName) {
+        try {
+            String value = record.get(fieldName);
+            return value == null || value.isEmpty();
+        } catch (IllegalArgumentException e) {
+            logger.warn("CSV parsing warning: Missing expected field '{}'", fieldName);
+            return true;
+        }
     }
 
 }
