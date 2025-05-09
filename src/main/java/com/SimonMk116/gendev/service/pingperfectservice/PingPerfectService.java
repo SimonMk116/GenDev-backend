@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class PingPerfectService {
@@ -35,20 +36,48 @@ public class PingPerfectService {
         // Loop through the response to map to InternetOffer
         if (response != null && response.isArray()) {
             for (JsonNode offerNode : response) {
+                //logger.info("Raw PingPerfect offer: {}", offerNode.toPrettyString());
+                //Provider Name
                 String providerName = offerNode.path("providerName").asText();
-                int monthlyCost = offerNode.path("pricingDetails").path("monthlyCostInCent").asInt();
-                int afterTwoYearsCost = offerNode.path("pricingDetails").path("afterTwoYearsMonthlyCost").asInt();
+                //Product Info
                 int speed = offerNode.path("productInfo").path("speed").asInt();
+                int durationInMonths = offerNode.path("productInfo").path("contractDucationInMonths").asInt();
+                String connectionType = offerNode.path("productInfo").path("connectionType").asText();
+                String tv = offerNode.path("productInfo").path("tv").asText();
+                Integer limitFrom = offerNode.path("productInfo").path("limitFrom").isNull() ? null : offerNode.path("productInfo").path("limitFrom").asInt();
+                Integer maxAge = offerNode.path("productInfo").path("maxAge").isNull() ? null : offerNode.path("productInfo").path("maxAge").asInt();
+                //Pricing Details
+                int monthlyCost = offerNode.path("pricingDetails").path("monthlyCostInCent").asInt();
+                boolean installationServiceIncluded = !offerNode.path("pricingDetails").path("installationService").asText().equalsIgnoreCase("no");
 
                 // Creating an InternetOffer from the response data
-                InternetOffer offer = new InternetOffer();
-                offer.setProviderName(providerName);
-                offer.setMonthlyCostInCent(monthlyCost);
-                offer.setAfterTwoYearsMonthlyCost(afterTwoYearsCost);   //TODO this and Product ID
-                offer.setSpeed(speed);
+                InternetOffer offer = new InternetOffer(
+                        providerName,
+                        "ping-" + UUID.randomUUID(),    //TODO
+                        speed,
+                        durationInMonths,
+                        connectionType,
+                        tv,
+                        limitFrom,
+                        maxAge,
+                        monthlyCost,
+                        installationServiceIncluded
+                );
 
-                internetOffers.add(offer);
+                // Add to list based on user's preference for fibre
+                if (request.isWantsFibre()) {
+                    if (offer.getConnectionType().equalsIgnoreCase("fibre")) {
+                        internetOffers.add(offer);  // Only add if the offer is fibre
+                    } else {
+                        // Optional: Log or handle non-fiber offers if needed
+                        logger.info("Non-fiber offer skipped: {}", offer.getProviderName());
+                    }
+                } else {
+                    // Add the offer regardless of its connection type if the user doesn't require fibre
+                    internetOffers.add(offer);
+                }
             }
+
         } else {
              logger.warn("No valid offers received.");
         }

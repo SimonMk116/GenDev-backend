@@ -46,14 +46,13 @@ public class VerbynDichClient {
                 ResponseEntity<VerbynDichResponse> response = restTemplate.exchange(url, HttpMethod.POST, entity, VerbynDichResponse.class);
                 if (response.getBody() != null && response.getBody().isValid()) {
                     responseList.add(response.getBody());
-                    //System.out.println("Response body: " + response.getBody());
                     return responseList;    // Successful response, return immediately
                 }
                 return responseList;  // Even if not valid, return empty or partial
             } catch (HttpServerErrorException e) {
                 if (e.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR) {
                     retryCount++;
-                    logger.warn("Received 500 error for page " + page + " (Attempt " + retryCount + "/" + MAX_RETRIES + ")");
+                    logger.warn("Received 500 error for page {} (Attempt {}/" + MAX_RETRIES + ")", page, retryCount);
                     try {
                         Thread.sleep(RETRY_DELAY_MS);
                     } catch (InterruptedException ex) {
@@ -61,12 +60,12 @@ public class VerbynDichClient {
                         return responseList; // Return whatever we might have
                     }
                 } else {
-                    logger.warn("HTTP Server Error (" + e.getStatusCode() + ") for page " + page + ". Not retrying.");
+                    logger.warn("HTTP Server Error ({}) for page {}. Not retrying.", e.getStatusCode(), page);
                     break; // Don't retry other server errors
                 }
             } catch (Exception e) {
                 retryCount++;
-                logger.warn("Request failed for page " + page + " (Attempt " + retryCount + "/" + MAX_RETRIES + "): " + e.getMessage() + ". Retrying in " + RETRY_DELAY_MS + "ms...");
+                logger.warn("Request failed for page {} (Attempt {}/" + MAX_RETRIES + "): {}. Retrying in " + RETRY_DELAY_MS + "ms...", page, retryCount, e.getMessage());
                 try {
                     Thread.sleep(RETRY_DELAY_MS);
                 } catch (InterruptedException ex) {
@@ -75,7 +74,7 @@ public class VerbynDichClient {
                 }
             }
         }
-        logger.warn("Max retries reached for page " + page + ". Skipping this page.");
+        logger.warn("Max retries reached for page {}. Skipping this page.", page);
         return responseList; // Return whatever we might have after retries
     }
 

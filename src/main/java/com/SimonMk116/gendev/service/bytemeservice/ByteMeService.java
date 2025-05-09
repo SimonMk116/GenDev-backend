@@ -36,8 +36,7 @@ public class ByteMeService {
 
     public Collection<InternetOffer> findOffers(String street, String houseNumber, String city, String plz) {
         SearchRequests request = new SearchRequests(street, houseNumber, city, plz);
-        Collection<InternetOffer> allOffers = new ArrayList<>(getOffersFromProviderByteMe(request));
-        return allOffers;
+        return new ArrayList<>(getOffersFromProviderByteMe(request));
     }
 
     /**
@@ -72,7 +71,7 @@ public class ByteMeService {
             } catch (HttpServerErrorException e) {
                 if (e.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR || e.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE) {
                     retryCount++;
-                    logger.warn("ByteMe API - Received " +e.getStatusCode() + "error. Retrying... (Attempt " + retryCount + "/" + MAX_RETRIES + ")");
+                    logger.warn("ByteMe API - Received {}error. Retrying... (Attempt {}/" + MAX_RETRIES + ")", e.getStatusCode(), retryCount);
                     try {
                         Thread.sleep(RETRY_DELAY_MS);
                     } catch (InterruptedException ex) {
@@ -80,12 +79,12 @@ public class ByteMeService {
                         return Collections.emptyList();
                     }
                 } else {
-                    logger.warn("ByteMe API - HTTP Server Error (" + e.getStatusCode() + "). Not retrying.");
+                    logger.warn("ByteMe API - HTTP Server Error ({}). Not retrying.", e.getStatusCode());
                     break; // Exit retry loop for non-500 server errors
                 }
             } catch (RestClientException e) {
                 retryCount++;
-                logger.warn("ByteMe API - Request failed (Attempt " + retryCount + "/" + MAX_RETRIES + "): " + e.getMessage() + ". Retrying...");
+                logger.warn("ByteMe API - Request failed (Attempt {}/" + MAX_RETRIES + "): {}. Retrying...", retryCount, e.getMessage());
                 try {
                     Thread.sleep(RETRY_DELAY_MS);
                 } catch (InterruptedException ex) {
@@ -139,25 +138,40 @@ public class ByteMeService {
                         isNullOrEmpty(record,"monthlyCostInCent") ||
                         isNullOrEmpty(record,"afterTwoYearsMonthlyCost")) {
 
-                    logger.warn("Warning: Incomplete product data in ByteMe CSV. Record: " + record);
+                    logger.warn("Warning: Incomplete product data in ByteMe CSV. Record: {}", record);
                     continue;
                 }
+                //logger.info(record.toString());
                 // --- Map CSV fields to InternetOffer object ---
+                
                 InternetOffer offer = new InternetOffer(
-                        Integer.parseInt(record.get("productId")),
+                        record.get("productId"),
                         record.get("providerName"),
                         Integer.parseInt(record.get("speed")),
                         Integer.parseInt(record.get("monthlyCostInCent")),
-                        Integer.parseInt(record.get("afterTwoYearsMonthlyCost"))
+                        Integer.parseInt(record.get("afterTwoYearsMonthlyCost")),
+                        Integer.parseInt(record.get("durationInMonths")),
+                        record.get("connectionType"),
+                        Boolean.parseBoolean(record.get("installationService")),
+                        record.get("tv"),
+                        parseOptionalInt(record.get("limitFrom")),
+                        parseOptionalInt(record.get("maxAge")),
+                        record.get("voucherType"),
+                        parseOptionalInt(record.get("voucherValue"))
                 );
                 offers.add(offer);
             }
         } catch (Exception e) {
             // --- Handle any parsing errors ---
-            logger.warn("Error parsing CSV: " + e.getMessage());
+            logger.warn("Error parsing CSV: {}", e.getMessage());
         }
         return offers;
     }
+
+    private static Integer parseOptionalInt(String value) {
+        return (value == null || value.isBlank()) ? null : Integer.parseInt(value);
+    }
+
 
     private boolean isNullOrEmpty(CSVRecord record, String fieldName) {
         try {

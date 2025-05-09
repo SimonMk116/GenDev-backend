@@ -6,6 +6,15 @@ public class VerbynDichResponse {
     private boolean last;
     private boolean valid;
 
+    //Constructor
+
+    public VerbynDichResponse(String product, String description, boolean last, boolean valid) {
+        this.product = product;
+        this.description = description;
+        this.last = last;
+        this.valid = valid;
+    }
+
     // Getters and Setters
     public String getProduct() {
         return product;

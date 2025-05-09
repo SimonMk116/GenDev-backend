@@ -74,22 +74,21 @@ public class OfferController {
             }
         });*/
 
-
-        CompletableFuture<Collection<InternetOffer>> servusSpeedOffers = CompletableFuture.supplyAsync(() -> time("ServusSpeed", () -> servusSpeedClient.fetchAllOffers(address)));
+        //CompletableFuture<Collection<InternetOffer>> servusSpeedOffers = CompletableFuture.supplyAsync(() -> time("ServusSpeed", () -> servusSpeedClient.fetchAllOffers(address)));
         CompletableFuture<Collection<InternetOffer>> verbynDichOffers = CompletableFuture.supplyAsync(() -> time("VerbynDich", () -> verbynDichService.findOffers(street, houseNumber, city, plz)));
         CompletableFuture<Collection<InternetOffer>> webWunderOffers = CompletableFuture.supplyAsync(() -> time("WebWunder", () -> webWunderService.findOffers(street, houseNumber, city, plz)));
         CompletableFuture<Collection<InternetOffer>> byteMeOffers = CompletableFuture.supplyAsync(() -> time("byteMe", () -> byteMeService.findOffers(street, houseNumber, city, plz)));
         CompletableFuture<Collection<InternetOffer>> pingPerfectOffers = CompletableFuture.supplyAsync(() -> time ("pingPerfect", () -> pingPerfectService.findOffers(street, houseNumber, city, plz, false))); //TODO get wantsFibre into request
 
         // Wait for all futures to complete and combine the results
-        CompletableFuture.allOf(verbynDichOffers, webWunderOffers, byteMeOffers, pingPerfectOffers, servusSpeedOffers).join();
+        CompletableFuture.allOf(verbynDichOffers, webWunderOffers, byteMeOffers, pingPerfectOffers).join();
 
         Collection<InternetOffer> allOffers = new ArrayList<>();
         allOffers.addAll(verbynDichOffers.get());
         allOffers.addAll(webWunderOffers.get());
         allOffers.addAll(byteMeOffers.get());
         allOffers.addAll(pingPerfectOffers.get());
-        allOffers.addAll(servusSpeedOffers.get());
+        //allOffers.addAll(servusSpeedOffers.get());
 
         System.out.println("Done");
         return ResponseEntity.ok(allOffers);

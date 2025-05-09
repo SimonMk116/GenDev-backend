@@ -70,10 +70,9 @@ public class PingPerfectClient {
                 return response.getBody();
 
             } catch (HttpServerErrorException e) {
-                if (e.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR) {
+                if (e.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE || e.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR) {
                     retryCount++;
-                    logger.warn("Internal Server Error (500) encountered. Retrying... (Attempt " + retryCount + "/" + MAX_RETRIES + ")");
-                    try {
+                    logger.warn("Server error ({}): Retrying... (Attempt {}/" + MAX_RETRIES + ")", e.getStatusCode(), retryCount);                    try {
                         Thread.sleep(RETRY_DELAY_MS);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
@@ -88,7 +87,7 @@ public class PingPerfectClient {
             } catch (RestClientException e) {
                 // Handle other client-side or network exceptions that might be transient
                 retryCount++;
-                logger.warn("Network or client error encountered. Retrying... (Attempt " + retryCount + "/" + MAX_RETRIES + "): " + e.getMessage());
+                logger.warn("Network or client error encountered. Retrying... (Attempt {}/" + MAX_RETRIES + "): {}", retryCount, e.getMessage());
                 try {
                     Thread.sleep(RETRY_DELAY_MS);
                 } catch (InterruptedException ex) {
@@ -96,7 +95,7 @@ public class PingPerfectClient {
                     return null; // Or handle interruption
                 }
             } catch (Exception e) {
-                logger.warn("Unexpected error occurred while retrieving internet offers: " + e.getMessage());
+                logger.warn("Unexpected error occurred while retrieving internet offers: {}", e.getMessage());
                 e.printStackTrace();
             }
         }

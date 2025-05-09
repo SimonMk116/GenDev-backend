@@ -44,8 +44,10 @@
             private static final Logger logger = LoggerFactory.getLogger(ServusSpeedClient.class);
 
             private static final int MAX_RETRIES = 3;
-            private static final long RETRY_DELAY_MS = 1000;
+            private static final long RETRY_DELAY_MS = 300;
 
+
+            //TODO Option 2
             public Flux<InternetOffer> fetchAllOffersReactive(RequestAddress address) {
                 return getAvailableProductIdsReactive(address)
                         .flatMapMany(Flux::fromIterable)
@@ -54,7 +56,7 @@
                                         .mapNotNull(product -> {
                                             try {
                                                 InternetOffer offer = new InternetOffer();
-                                                offer.setProductId(productId.length());
+                                                offer.setProductId(productId);
                                                 offer.setProviderName(product.getProviderName());
                                                 offer.setSpeed(product.getProductInfo().getSpeed());
                                                 logger.debug("InternetOffer created for product {}: {}", productId, offer); // only reached by 10/15
@@ -147,15 +149,75 @@
                         .map(productId -> {
                             try {
                                 ServusSpeedProduct product = getProductDetails(productId, address);
-                                return (product != null) ? mapToInternetOffer(product, productId) : null;
+                                if (product == null) return null;
+                                return new InternetOffer(
+                                        productId,
+                                        product.getProviderName(),
+                                        product.getProductInfo().getSpeed(),
+                                        product.getProductInfo().getContractDurationInMonths(),
+                                        product.getProductInfo().getConnectionType(),
+                                        product.getProductInfo().getTv(),
+                                        product.getProductInfo().getLimitFrom(),
+                                        product.getProductInfo().getMaxAge(),
+                                        product.getPricingDetails().getMonthlyCostInCent(),
+                                        product.getPricingDetails().isInstallationService(),
+                                        product.getDiscount()
+                                );
                             } catch (Exception e) {
-                                logger.warn("Failed to fetch details for product " + productId + ": " + e.getMessage());
+                                logger.warn("Failed to fetch details for product {}: {}", productId, e.getMessage());
                                 return null;
                             }
                         })
                         .filter(Objects::nonNull) // remove failed/null results
                         .toList();
+
+
+//                List<String> productIds = getAvailableProductIds(address);
+//                TODO Option 3 Use a fixed thread pool (tune the size based on expected load)
+//                ExecutorService executor = Executors.newFixedThreadPool(15); // 15 concurrent threads
+//                List<Future<InternetOffer>> futures = new ArrayList<>();
+//
+//                for (String productId : productIds) {
+//                    futures.add(executor.submit(() -> {
+//                        try {
+//                            ServusSpeedProduct product = getProductDetails(productId, address);
+//                            if (product == null) return null;
+//
+//                            return new InternetOffer(
+//                                    productId,
+//                                    product.getProviderName(),
+//                                    product.getProductInfo().getSpeed(),
+//                                    product.getProductInfo().getContractDurationInMonths(),
+//                                    product.getProductInfo().getConnectionType(),
+//                                    product.getProductInfo().getTv(),
+//                                    product.getProductInfo().getLimitFrom(),
+//                                    product.getProductInfo().getMaxAge(),
+//                                    product.getPricingDetails().getMonthlyCostInCent(),
+//                                    product.getPricingDetails().isInstallationService(),
+//                                    product.getDiscount()
+//                            );
+//                        } catch (Exception e) {
+//                            logger.warn("Failed to fetch details for product {}: {}", productId, e.getMessage());
+//                            return null;
+//                        }
+//                    }));
+//                }
+//
+//                List<InternetOffer> offers = new ArrayList<>();
+//                for (Future<InternetOffer> future : futures) {
+//                    try {
+//                        InternetOffer offer = future.get(20, TimeUnit.SECONDS); // optional timeout per request
+//                        if (offer != null) offers.add(offer);
+//                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
+//                        logger.warn("Timeout or execution error while fetching offer: {}", e.getMessage());
+//                    }
+//                }
+//
+//                executor.shutdown(); // clean up thread pool
+//                return offers;
             }
+
+
 
             private List<String> getAvailableProductIds(RequestAddress address) {
                 String url = baseUrl + "/api/external/available-products";
@@ -180,14 +242,15 @@
                                 HttpMethod.POST,
                                 entity,
                                 InternetOffersResponseDataList.class
-                        );if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                        );
+                        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                             productIds = response.getBody().getAvailableProducts();
                             break; // Successful response, exit retry loop
                         } else {
-                            logger.warn("Servus Speed - Failed to get available product IDs. Status: " + response.getStatusCode());
+                            logger.warn("Servus Speed - Failed to get available product IDs. Status: {}", response.getStatusCode());
                         }
                     } catch (HttpClientErrorException | HttpServerErrorException e) {
-                        logger.warn("Servus Speed - Error getting available product IDs (Attempt " + (retryCount + 1) + "/" + MAX_RETRIES + "): " + e.getStatusCode());
+                        logger.warn("Servus Speed - Error getting available product IDs (Attempt {}/" + MAX_RETRIES + "): {}", retryCount + 1, e.getStatusCode());
                         if (shouldRetry(e.getStatusCode())) {
                             retryCount++;
                             sleepForRetry();
@@ -195,7 +258,7 @@
                             throw e; // Re-throw non-recoverable errors
                         }
                     } catch (RestClientException e) {
-                        logger.warn("Servus Speed - Request failed for available product IDs (Attempt " + (retryCount + 1) + "/" + MAX_RETRIES + "): " + e.getMessage());
+                        logger.warn("Servus Speed - Request failed for available product IDs (Attempt {}/" + MAX_RETRIES + "): {}", retryCount + 1, e.getMessage());
                         retryCount++;
                         sleepForRetry();
                     }
@@ -207,6 +270,7 @@
                 return productIds != null ? productIds : new ArrayList<>();
             }
 
+            //Gets all products
             public ServusSpeedProduct getProductDetails(String productId, RequestAddress address) {
                 String url = baseUrl + "/api/external/product-details/" + productId;
 
@@ -227,14 +291,15 @@
                                 HttpMethod.POST,
                                 entity,
                                 DetailedResponseData.class
-                        );if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                        );
+                        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                             productDetails = response.getBody().getServusSpeedProduct();
                             break; // Successful response, exit retry loop
                         } else {
-                            logger.warn("Servus Speed - Failed to get details for product " + productId + ". Status: " + response.getStatusCode());
+                            logger.warn("Servus Speed - Failed to get details for product {}. Status: {}", productId, response.getStatusCode());
                         }
                     } catch (HttpClientErrorException | HttpServerErrorException e) {
-                        logger.warn("Servus Speed - Error getting details for product " + productId + " (Attempt " + (retryCount + 1) + "/" + MAX_RETRIES + "): " + e.getStatusCode());
+                        logger.warn("Servus Speed - Error getting details for product {} (Attempt {}/" + MAX_RETRIES + "): {}", productId, retryCount + 1, e.getStatusCode());
                         if (shouldRetry(e.getStatusCode())) {
                             retryCount++;
                             sleepForRetry();
@@ -242,31 +307,59 @@
                             throw e; // Re-throw non-recoverable errors
                         }
                     } catch (RestClientException e) {
-                        logger.warn("Servus Speed - Request failed for product " + productId + " details (Attempt " + (retryCount + 1) + "/" + MAX_RETRIES + "): " + e.getMessage());
+                        logger.warn("Servus Speed - Request failed for product {} details (Attempt {}/" + MAX_RETRIES + "): {}", productId, retryCount + 1, e.getMessage());
                         retryCount++;
                         sleepForRetry();
                     }
                 }
 
                 if (productDetails == null) {
-                    logger.warn("Servus Speed - Max retries reached for getting details for product " + productId + ".");
+                    logger.warn("Servus Speed - Max retries reached for getting details for product {}.", productId);
                 }
                 return productDetails;
             }
 
-
-            private InternetOffer mapToInternetOffer(ServusSpeedProduct product, String productId) {
-                InternetOffer offer = new InternetOffer();
-                offer.setProductId(productId.length());    //TODO fix productID
-                offer.setProviderName(product.getProviderName());
-                offer.setSpeed(product.getProductInfo().getSpeed());
-                offer.setMonthlyCostInCent(product.getPricingDetails().getMonthlyCostInCent() - product.getDiscount()/24); //TODO change
-                offer.setAfterTwoYearsMonthlyCost(product.getPricingDetails().getMonthlyCostInCent());
-                offer.setContractDurationInMonths(product.getProductInfo().getContractDurationInMonths());
-                offer.setConnectionType(product.getProductInfo().getConnectionType());
-
-                return offer;
-            }
+            //TODO: Option 3
+//            public ServusSpeedProduct getProductDetails(String productId, RequestAddress address) {
+//                String url = baseUrl + "/api/external/product-details/" + productId;
+//
+//                InternetAngeboteRequestData requestData = new InternetAngeboteRequestData();
+//                requestData.setAddress(address);
+//
+//                try {
+//                    DetailedResponseData response = webClient.post()
+//                            .uri(url)
+//                            .contentType(MediaType.APPLICATION_JSON)
+//                            .bodyValue(requestData)
+//                            .retrieve()
+//                            .bodyToMono(DetailedResponseData.class)
+//                            .timeout(Duration.ofSeconds(100)) // avoid long hangs
+//                            .retryWhen(Retry.fixedDelay(MAX_RETRIES, Duration.ofMillis(RETRY_DELAY_MS))
+//                                    .filter(this::shouldRetryWebClient))
+//                            .block(); // blocking to keep method signature the same
+//
+//                    if (response != null && response.getServusSpeedProduct() != null) {
+//                        return response.getServusSpeedProduct();
+//                    } else {
+//                        logger.warn("Servus Speed - Null response or missing product for productId {}", productId);
+//                    }
+//                } catch (WebClientResponseException e) {
+//                    logger.warn("Servus Speed - Response error for product {}: {} {}", productId, e.getStatusCode(), e.getMessage());
+//                } catch (WebClientRequestException e) {
+//                    logger.warn("Servus Speed - Request error for product {}: {}", productId, e.getMessage());
+//                } catch (Exception e) {
+//                    logger.warn("Servus Speed - Unexpected error for product {}: {}", productId, e.getMessage());
+//                }
+//
+//                return null;
+//            }
+//
+//
+//            private boolean shouldRetryWebClient(Throwable throwable) {
+//                return throwable instanceof WebClientResponseException e &&
+//                        (e.getStatusCode().is5xxServerError() || e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS);
+//            }
+//
 
             private boolean shouldRetry(HttpStatusCode statusCode) {
                 return statusCode.is5xxServerError() || statusCode == HttpStatus.TOO_MANY_REQUESTS;

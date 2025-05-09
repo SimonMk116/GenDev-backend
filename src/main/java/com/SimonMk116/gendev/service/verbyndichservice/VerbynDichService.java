@@ -2,7 +2,6 @@ package com.SimonMk116.gendev.service.verbyndichservice;
 
 import com.SimonMk116.gendev.dto.VerbynDichResponse;
 import com.SimonMk116.gendev.model.InternetOffer;
-import com.SimonMk116.gendev.model.RequestAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +25,6 @@ public class VerbynDichService {
 
     public List<InternetOffer> findOffers(String street, String houseNumber, String city, String plz) {
         List<VerbynDichResponse> rawOffers = verbynDichClient.getAllOffers(street, houseNumber, city, plz);
-        //return verbynDichClient.getOffers(street, houseNumber, city, plz, 0);
         return rawOffers.stream()
                 .filter(VerbynDichResponse::isValid) // filter out invalid offers
                 .map(this::mapToInternetOffer)       // map to InternetOffer
@@ -40,54 +38,83 @@ public class VerbynDichService {
         Pattern speedPattern = Pattern.compile("(\\d+) Mbit/s");
         Pattern pricePattern = Pattern.compile("(\\d+)€ im Monat");
         Pattern afterTwoYearsPricePattern = Pattern.compile("monatliche Preis (\\d+)€");
+        Pattern durationPattern = Pattern.compile("Mindestvertragslaufzeit (\\d+) Monate");
+        Pattern maxAgePattern = Pattern.compile("nur für Personen unter (\\d+)");
+        Pattern discountPercentagePattern = Pattern.compile("Rabatt von (\\d+)%");
+        Pattern discountDurationPattern = Pattern.compile("bis zum (\\d+)\\. Monat");
+        Pattern discountCapPattern = Pattern.compile("maximale[rn]? Rabatt beträgt (\\d+)[€E]");
+        Pattern tvPattern = Pattern.compile("Fernsehsender enthalten[\\s:]+(\\d+)");
+        Pattern connectionTypePattern = Pattern.compile("(DSL|Kabel|Fiber|Glasfaser)", Pattern.CASE_INSENSITIVE);
+        Pattern limitFromPattern = Pattern.compile("Ab (\\d+)GB pro Monat");
 
         // Initialize default values
         int speed = 0;
-        int monthlyPrice = 0;
-        int priceAfterTwoYears = 0;
+        int monthlyCost = 0;
+        int afterTwoYearsMonthlyCost = 0;
+        int durationInMonths = 0;
+        Integer maxAge = null;
+        int discountPercentage = 0;
+        int discountDuration = 0;
+        int discountCap = 0;
+        String tv = null;
+        String connectionType = null;
+        int limitFrom = 0;
 
-        // Match speed
-        Matcher speedMatcher = speedPattern.matcher(description);
-        if (speedMatcher.find()) {
+        Matcher matcher;
+
+        matcher = speedPattern.matcher(description);
+        if (matcher.find()) speed = Integer.parseInt(matcher.group(1));
+
+        matcher = pricePattern.matcher(description);
+        if (matcher.find()) monthlyCost = Integer.parseInt(matcher.group(1));
+
+        matcher = afterTwoYearsPricePattern.matcher(description);
+        if (matcher.find()) afterTwoYearsMonthlyCost = Integer.parseInt(matcher.group(1));
+
+        matcher = durationPattern.matcher(description);
+        if (matcher.find()) durationInMonths = Integer.parseInt(matcher.group(1));
+
+        matcher = maxAgePattern.matcher(description);
+        if (matcher.find()) {
             try {
-                speed = Integer.parseInt(speedMatcher.group(1));
+                maxAge = Integer.parseInt(matcher.group(1));
             } catch (NumberFormatException e) {
-                logger.warn("Error parsing speed: " + e.getMessage());
+                logger.warn("Error parsing maxAge: {}", e.getMessage());
             }
         }
 
-        // Match monthly price
-        Matcher priceMatcher = pricePattern.matcher(description);
-        if (priceMatcher.find()) {
-            try {
-                monthlyPrice = Integer.parseInt(priceMatcher.group(1));
-            } catch (NumberFormatException e) {
-                logger.warn("Error parsing price: " + e.getMessage());
-            }
-        }
+        matcher = discountPercentagePattern.matcher(description);
+        if (matcher.find()) discountPercentage = Integer.parseInt(matcher.group(1));
 
-        // Match price after two years
-        Matcher afterTwoYearsPriceMatcher = afterTwoYearsPricePattern.matcher(description);
-        if (afterTwoYearsPriceMatcher.find()) {
-            try {
-                priceAfterTwoYears = Integer.parseInt(afterTwoYearsPriceMatcher.group(1));
-            } catch (NumberFormatException e) {
-                logger.warn("Error parsing price after two years: " + e.getMessage());
-            }
-        }
+        matcher = discountDurationPattern.matcher(description);
+        if (matcher.find()) discountDuration = Integer.parseInt(matcher.group(1));
 
-        int generatedProductId = generateProductId(response);
+        matcher = discountCapPattern.matcher(description);
+        if (matcher.find()) discountCap = Integer.parseInt(matcher.group(1));
+
+        matcher = tvPattern.matcher(description);
+        if (matcher.find()) tv = matcher.group(1);
+
+        matcher = connectionTypePattern.matcher(description);
+        if (matcher.find()) connectionType = matcher.group(1);
+
+        matcher = limitFromPattern.matcher(description);
+        if (matcher.find()) limitFrom = Integer.parseInt(matcher.group(1));
 
         return new InternetOffer(
-                generatedProductId, // or generate your own product ID
-                response.getProduct(),          // Provider name
+                response.getProduct(),
+                //TODO might want to add Id
                 speed,
-                monthlyPrice * 100,     // assuming store it in cents
-                priceAfterTwoYears * 100
+                monthlyCost*100,
+                afterTwoYearsMonthlyCost*100,
+                durationInMonths,
+                maxAge,
+                discountPercentage,
+                discountDuration,
+                discountCap,
+                tv,
+                connectionType,
+                limitFrom
         );
-
-    }
-    private int generateProductId(VerbynDichResponse response) {
-        return response.hashCode();  //TODO
     }
 }
