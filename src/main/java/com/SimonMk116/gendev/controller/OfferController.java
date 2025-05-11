@@ -55,39 +55,21 @@ public class OfferController {
         address.setStadt("Musterstadt");
         address.setLand("DE");
 
-        // Creating CompletableFutures for each service call
-        /*CompletableFuture<Collection<InternetOffer>> servusSpeedOffers = CompletableFuture.supplyAsync(() -> {
-            long start = System.currentTimeMillis();
-            try {
-                List<InternetOffer> offers = servusSpeedClient
-                        .fetchAllOffersReactive(address)
-                        .collectList()
-                        .block(); // Still blocking, but let's address this in the next step
-                System.out.println("TOTAL OFFERS RETURNED (Reactive Block): " + offers.size());
-                long end = System.currentTimeMillis();
-                System.out.println("servusSpeed (Reactive Block) took " + (end - start) + " ms");
-                return offers;
-            } catch (Exception e) {
-                long end = System.currentTimeMillis();
-                System.out.println("servusSpeed (Reactive Block) failed after " + (end - start) + " ms: " + e.getMessage());
-                return List.of();
-            }
-        });*/
 
         //CompletableFuture<Collection<InternetOffer>> servusSpeedOffers = CompletableFuture.supplyAsync(() -> time("ServusSpeed", () -> servusSpeedClient.fetchAllOffers(address)));
         CompletableFuture<Collection<InternetOffer>> verbynDichOffers = CompletableFuture.supplyAsync(() -> time("VerbynDich", () -> verbynDichService.findOffers(street, houseNumber, city, plz)));
-        CompletableFuture<Collection<InternetOffer>> webWunderOffers = CompletableFuture.supplyAsync(() -> time("WebWunder", () -> webWunderService.findOffers(street, houseNumber, city, plz)));
-        CompletableFuture<Collection<InternetOffer>> byteMeOffers = CompletableFuture.supplyAsync(() -> time("byteMe", () -> byteMeService.findOffers(street, houseNumber, city, plz)));
-        CompletableFuture<Collection<InternetOffer>> pingPerfectOffers = CompletableFuture.supplyAsync(() -> time ("pingPerfect", () -> pingPerfectService.findOffers(street, houseNumber, city, plz, false))); //TODO get wantsFibre into request
+        //CompletableFuture<Collection<InternetOffer>> webWunderOffers = CompletableFuture.supplyAsync(() -> time("WebWunder", () -> webWunderService.findOffers(street, houseNumber, city, plz)));
+        //CompletableFuture<Collection<InternetOffer>> byteMeOffers = CompletableFuture.supplyAsync(() -> time("byteMe", () -> byteMeService.findOffers(street, houseNumber, city, plz)));
+        //CompletableFuture<Collection<InternetOffer>> pingPerfectOffers = CompletableFuture.supplyAsync(() -> time ("pingPerfect", () -> pingPerfectService.findOffers(street, houseNumber, city, plz, false))); //TODO get wantsFibre into request
 
         // Wait for all futures to complete and combine the results
-        CompletableFuture.allOf(verbynDichOffers, webWunderOffers, byteMeOffers, pingPerfectOffers).join();
+        CompletableFuture.allOf(verbynDichOffers).join();
 
         Collection<InternetOffer> allOffers = new ArrayList<>();
         allOffers.addAll(verbynDichOffers.get());
-        allOffers.addAll(webWunderOffers.get());
+        /*allOffers.addAll(webWunderOffers.get());
         allOffers.addAll(byteMeOffers.get());
-        allOffers.addAll(pingPerfectOffers.get());
+        allOffers.addAll(pingPerfectOffers.get());*/
         //allOffers.addAll(servusSpeedOffers.get());
 
         System.out.println("Done");

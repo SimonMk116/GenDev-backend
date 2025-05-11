@@ -143,22 +143,23 @@ public class ByteMeService {
                 }
                 //logger.info(record.toString());
                 // --- Map CSV fields to InternetOffer object ---
-                
+
                 InternetOffer offer = new InternetOffer(
                         record.get("productId"),
                         record.get("providerName"),
                         Integer.parseInt(record.get("speed")),
                         Integer.parseInt(record.get("monthlyCostInCent")),
                         Integer.parseInt(record.get("afterTwoYearsMonthlyCost")),
-                        Integer.parseInt(record.get("durationInMonths")),
-                        record.get("connectionType"),
-                        Boolean.parseBoolean(record.get("installationService")),
-                        record.get("tv"),
+                        parseOptionalInt(record.get("durationInMonths")),  // May be null
+                        record.isMapped("connectionType") ? record.get("connectionType") : null,
+                        parseOptionalBoolean(record.get("installationService")),
+                        record.isMapped("tv") ? record.get("tv") : null,
                         parseOptionalInt(record.get("limitFrom")),
                         parseOptionalInt(record.get("maxAge")),
-                        record.get("voucherType"),
+                        record.isMapped("voucherType") ? record.get("voucherType") : null,
                         parseOptionalInt(record.get("voucherValue"))
                 );
+
                 offers.add(offer);
             }
         } catch (Exception e) {
@@ -170,6 +171,10 @@ public class ByteMeService {
 
     private static Integer parseOptionalInt(String value) {
         return (value == null || value.isBlank()) ? null : Integer.parseInt(value);
+    }
+
+    private static Boolean parseOptionalBoolean(String value) {
+        return (value == null || value.isBlank()) ? null : Boolean.parseBoolean(value);
     }
 
 

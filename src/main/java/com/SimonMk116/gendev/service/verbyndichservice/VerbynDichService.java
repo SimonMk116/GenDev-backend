@@ -31,21 +31,21 @@ public class VerbynDichService {
                 .collect(Collectors.toList());       // collect into a List
     }
 
+    // Define the patterns to extract necessary data
+    static Pattern speedPattern = Pattern.compile("(\\d+) Mbit/s");
+    static Pattern pricePattern = Pattern.compile("(\\d+)€ im Monat");
+    static Pattern afterTwoYearsPricePattern = Pattern.compile("monatliche Preis (\\d+)€");
+    static Pattern durationPattern = Pattern.compile("Mindestvertragslaufzeit (\\d+) Monate");
+    static Pattern maxAgePattern = Pattern.compile("nur für Personen unter (\\d+)");
+    static Pattern discountPercentagePattern = Pattern.compile("Rabatt von (\\d+)%");
+    static Pattern discountDurationPattern = Pattern.compile("bis zum (\\d+)\\. Monat");
+    static Pattern discountCapPattern = Pattern.compile("maximale[rn]? Rabatt beträgt (\\d+)[€E]");
+    static Pattern tvPattern = Pattern.compile("Fernsehsender enthalten[\\s:]+(\\d+)");
+    static Pattern connectionTypePattern = Pattern.compile("(DSL|Kabel|Fiber|Glasfaser)", Pattern.CASE_INSENSITIVE);
+    static Pattern limitFromPattern = Pattern.compile("Ab (\\d+)GB pro Monat");
+
     private InternetOffer mapToInternetOffer(VerbynDichResponse response) {
         String description = response.getDescription();
-
-        // Define the patterns to extract necessary data
-        Pattern speedPattern = Pattern.compile("(\\d+) Mbit/s");
-        Pattern pricePattern = Pattern.compile("(\\d+)€ im Monat");
-        Pattern afterTwoYearsPricePattern = Pattern.compile("monatliche Preis (\\d+)€");
-        Pattern durationPattern = Pattern.compile("Mindestvertragslaufzeit (\\d+) Monate");
-        Pattern maxAgePattern = Pattern.compile("nur für Personen unter (\\d+)");
-        Pattern discountPercentagePattern = Pattern.compile("Rabatt von (\\d+)%");
-        Pattern discountDurationPattern = Pattern.compile("bis zum (\\d+)\\. Monat");
-        Pattern discountCapPattern = Pattern.compile("maximale[rn]? Rabatt beträgt (\\d+)[€E]");
-        Pattern tvPattern = Pattern.compile("Fernsehsender enthalten[\\s:]+(\\d+)");
-        Pattern connectionTypePattern = Pattern.compile("(DSL|Kabel|Fiber|Glasfaser)", Pattern.CASE_INSENSITIVE);
-        Pattern limitFromPattern = Pattern.compile("Ab (\\d+)GB pro Monat");
 
         // Initialize default values
         int speed = 0;

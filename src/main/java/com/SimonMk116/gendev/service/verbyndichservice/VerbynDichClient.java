@@ -21,7 +21,7 @@ public class VerbynDichClient {
     private static final Logger logger = LoggerFactory.getLogger(VerbynDichClient.class);
     private final RestTemplate restTemplate;
     private static final int MAX_RETRIES = 3;
-    private static final long RETRY_DELAY_MS = 500;
+    private static final long RETRY_DELAY_MS = 300;
 
     public VerbynDichClient(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
@@ -43,10 +43,14 @@ public class VerbynDichClient {
         while (retryCount < MAX_RETRIES) {
             // Make the POST request
             try {
-                ResponseEntity<VerbynDichResponse> response = restTemplate.exchange(url, HttpMethod.POST, entity, VerbynDichResponse.class);
-                if (response.getBody() != null && response.getBody().isValid()) {
-                    responseList.add(response.getBody());
-                    return responseList;    // Successful response, return immediately
+                long start = System.currentTimeMillis();
+                System.out.println("VD call " + url + " => " + entity);
+                ResponseEntity<VerbynDichResponse> response =
+                        restTemplate.postForEntity(url, entity, VerbynDichResponse.class);  // TODO: add uri variables here
+                System.out.println("VD took " + (System.currentTimeMillis() - start) + "ms");
+                VerbynDichResponse responseItem = response.getBody();
+                if (responseItem != null && responseItem.isValid()) {
+                    responseList.add(responseItem);
                 }
                 return responseList;  // Even if not valid, return empty or partial
             } catch (HttpServerErrorException e) {
@@ -78,6 +82,7 @@ public class VerbynDichClient {
         return responseList; // Return whatever we might have after retries
     }
 
+    // TODO: Stream
     public List<VerbynDichResponse> getAllOffers(String street, String houseNumber, String city, String plz) {
         List<VerbynDichResponse> allOffers = new ArrayList<>();
         int page = 0;
