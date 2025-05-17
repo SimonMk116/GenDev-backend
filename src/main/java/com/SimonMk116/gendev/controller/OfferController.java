@@ -8,80 +8,55 @@ import com.SimonMk116.gendev.service.servusspeedservice.ServusSpeedClient;
 import com.SimonMk116.gendev.service.verbyndichservice.VerbynDichService;
 import com.SimonMk116.gendev.service.webwunderservice.WebWunderService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Supplier;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/offers")
 @CrossOrigin(origins = "http://localhost:5173")
-//change to sending socket instead of parameters
-//waits for all Services before answering
+//sends results to the frontend on arrival (each page on their own immediately)
 public class OfferController {
 
-    private final ByteMeService byteMeService;
-    private final WebWunderService webWunderService;
-    private final PingPerfectService pingPerfectService;
-    private final VerbynDichService verbynDichService;
-    private final ServusSpeedClient servusSpeedClient;
+    public interface InternetOfferService {
+        Flux<InternetOffer> getOffers(RequestAddress address);
+    }
+
+    List<InternetOfferService> services = new ArrayList<>();
 
     @Autowired
     public OfferController(ByteMeService byteMeService, WebWunderService webWunderService, PingPerfectService pingPerfectService, VerbynDichService verbynDichService, ServusSpeedClient servusSpeedClient) {
-        this.webWunderService = webWunderService;
-        this.byteMeService = byteMeService;
-        this.pingPerfectService = pingPerfectService;
-        this.verbynDichService = verbynDichService;
-        this.servusSpeedClient = servusSpeedClient;
+
+        services.add(verbynDichService);
+        services.add(byteMeService);
+        services.add(webWunderService);
+        services.add(pingPerfectService);
+        services.add(servusSpeedClient);
     }
 
-    @GetMapping
-    public ResponseEntity<Collection<InternetOffer>> getOffers(
+    @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<InternetOffer> getOffers(
             @RequestParam String street,
             @RequestParam String houseNumber,
             @RequestParam String city,
-            @RequestParam String plz) throws ExecutionException, InterruptedException{
+            @RequestParam String plz) {
 
         //build address, currently only for ServusSpeed
         System.out.println("Received API call with params: " + street + ", " + houseNumber + ", " + city + ", " + plz);
         RequestAddress address = new RequestAddress();
-        address.setStrasse("Musterstraße");
-        address.setHausnummer("1");
-        address.setPostleitzahl("12345");
-        address.setStadt("Musterstadt");
+        address.setStrasse(street);
+        address.setHausnummer(houseNumber);
+        address.setPostleitzahl(plz);
+        address.setStadt(city);
         address.setLand("DE");
 
-
-        //CompletableFuture<Collection<InternetOffer>> servusSpeedOffers = CompletableFuture.supplyAsync(() -> time("ServusSpeed", () -> servusSpeedClient.fetchAllOffers(address)));
-        CompletableFuture<Collection<InternetOffer>> verbynDichOffers = CompletableFuture.supplyAsync(() -> time("VerbynDich", () -> verbynDichService.findOffers(street, houseNumber, city, plz)));
-        //CompletableFuture<Collection<InternetOffer>> webWunderOffers = CompletableFuture.supplyAsync(() -> time("WebWunder", () -> webWunderService.findOffers(street, houseNumber, city, plz)));
-        //CompletableFuture<Collection<InternetOffer>> byteMeOffers = CompletableFuture.supplyAsync(() -> time("byteMe", () -> byteMeService.findOffers(street, houseNumber, city, plz)));
-        //CompletableFuture<Collection<InternetOffer>> pingPerfectOffers = CompletableFuture.supplyAsync(() -> time ("pingPerfect", () -> pingPerfectService.findOffers(street, houseNumber, city, plz, false))); //TODO get wantsFibre into request
-
-        // Wait for all futures to complete and combine the results
-        CompletableFuture.allOf(verbynDichOffers).join();
-
-        Collection<InternetOffer> allOffers = new ArrayList<>();
-        allOffers.addAll(verbynDichOffers.get());
-        /*allOffers.addAll(webWunderOffers.get());
-        allOffers.addAll(byteMeOffers.get());
-        allOffers.addAll(pingPerfectOffers.get());*/
-        //allOffers.addAll(servusSpeedOffers.get());
-
-        System.out.println("Done");
-        return ResponseEntity.ok(allOffers);
+        return Flux.merge(
+                services.stream()
+                        .map(service -> service.getOffers(address))
+                        .toList()
+        ).doOnComplete(() -> System.out.println("All offer streams completed."));
     }
-
-    private <T> T time(String label, Supplier<T> supplier) {
-        long start = System.currentTimeMillis();
-        T result = supplier.get();
-        long end = System.currentTimeMillis();
-        System.out.println(label + " took " + (end - start) + " ms");
-        return result;
-    }
-
 }

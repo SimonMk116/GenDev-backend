@@ -1,20 +1,22 @@
 package com.SimonMk116.gendev.service.pingperfectservice;
 
+import com.SimonMk116.gendev.controller.OfferController;
 import com.SimonMk116.gendev.dto.SearchRequests;
 import com.SimonMk116.gendev.model.InternetOffer;
+import com.SimonMk116.gendev.model.RequestAddress;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.UUID;
 
 @Service
-public class PingPerfectService {
+public class PingPerfectService implements OfferController.InternetOfferService {
 
     private static final Logger logger = LoggerFactory.getLogger(PingPerfectService.class);
     private final PingPerfectClient pingPerfectClient;
@@ -24,64 +26,73 @@ public class PingPerfectService {
         this.pingPerfectClient = client;
     }
 
-    public Collection<InternetOffer> findOffers(String street, String houseNumber, String city, String plz, Boolean wantsFibre) {
-        // Create the search request based on provided parameters
-        SearchRequests request = new SearchRequests(street, houseNumber, city, plz, wantsFibre);
+    @Override
+    public Flux<InternetOffer> getOffers(RequestAddress address) {
+        boolean wantsFibre = false; // or extract from address if you add that field
 
-        // Fetch the response from PingPerfect API
-        JsonNode response = pingPerfectClient.getInternetOffers(request);
+        // Build the SearchRequests DTO once
+        SearchRequests request = new SearchRequests(
+                address.getStrasse(),
+                address.getHausnummer(),
+                address.getStadt(),
+                address.getPostleitzahl(),
+                wantsFibre
+        );
 
-        List<InternetOffer> internetOffers = new ArrayList<>();
+        return Flux.defer(() -> {
+            long start = System.currentTimeMillis();
 
-        // Loop through the response to map to InternetOffer
-        if (response != null && response.isArray()) {
-            for (JsonNode offerNode : response) {
-                //logger.info("Raw PingPerfect offer: {}", offerNode.toPrettyString());
-                //Provider Name
-                String providerName = offerNode.path("providerName").asText();
-                //Product Info
-                int speed = offerNode.path("productInfo").path("speed").asInt();
-                int durationInMonths = offerNode.path("productInfo").path("contractDucationInMonths").asInt();
-                String connectionType = offerNode.path("productInfo").path("connectionType").asText();
-                String tv = offerNode.path("productInfo").path("tv").asText();
-                Integer limitFrom = offerNode.path("productInfo").path("limitFrom").isNull() ? null : offerNode.path("productInfo").path("limitFrom").asInt();
-                Integer maxAge = offerNode.path("productInfo").path("maxAge").isNull() ? null : offerNode.path("productInfo").path("maxAge").asInt();
-                //Pricing Details
-                int monthlyCost = offerNode.path("pricingDetails").path("monthlyCostInCent").asInt();
-                boolean installationServiceIncluded = !offerNode.path("pricingDetails").path("installationService").asText().equalsIgnoreCase("no");
+            return Mono
+                    .fromCallable(() -> pingPerfectClient.getInternetOffers(request))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .flatMapMany(response -> {
+                        if (response == null || !response.isArray()) {
+                            logger.warn("PingPerfectService: no valid response for {}", request);
+                            return Flux.empty();
+                        }
+                        return Flux.fromIterable(response)
+                                .map(offerNode -> {
+                                    String providerName = offerNode.path("providerName").asText();
 
-                // Creating an InternetOffer from the response data
-                InternetOffer offer = new InternetOffer(
-                        providerName,
-                        "ping-" + UUID.randomUUID(),    //TODO
-                        speed,
-                        durationInMonths,
-                        connectionType,
-                        tv,
-                        limitFrom,
-                        maxAge,
-                        monthlyCost,
-                        installationServiceIncluded
-                );
+                                    JsonNode info = offerNode.path("productInfo");
+                                    int speed = info.path("speed").asInt();
+                                    int durationInMonths = info.path("contractDucationInMonths").asInt();
+                                    String connectionType = info.path("connectionType").asText();
+                                    String tv = info.path("tv").asText();
+                                    Integer limitFrom = info.path("limitFrom").isNull()
+                                            ? null : info.path("limitFrom").asInt();
+                                    Integer maxAge = info.path("maxAge").isNull()
+                                            ? null : info.path("maxAge").asInt();
 
-                // Add to list based on user's preference for fibre
-                if (request.isWantsFibre()) {
-                    if (offer.getConnectionType().equalsIgnoreCase("fibre")) {
-                        internetOffers.add(offer);  // Only add if the offer is fibre
-                    } else {
-                        // Optional: Log or handle non-fiber offers if needed
-                        logger.info("Non-fiber offer skipped: {}", offer.getProviderName());
-                    }
-                } else {
-                    // Add the offer regardless of its connection type if the user doesn't require fibre
-                    internetOffers.add(offer);
-                }
-            }
+                                    JsonNode pricing = offerNode.path("pricingDetails");
+                                    int monthlyCost = pricing.path("monthlyCostInCent").asInt();
+                                    boolean installationIncluded = !"no".equalsIgnoreCase(
+                                            pricing.path("installationService").asText()
+                                    );
 
-        } else {
-             logger.warn("No valid offers received.");
-        }
-
-        return internetOffers;
+                                    return new InternetOffer(
+                                            providerName,
+                                            "ping-" + UUID.randomUUID(),
+                                            speed,
+                                            durationInMonths,
+                                            connectionType,
+                                            tv,
+                                            limitFrom,
+                                            maxAge,
+                                            monthlyCost,
+                                            installationIncluded
+                                    );
+                                })
+                                .filter(o -> !wantsFibre
+                                        || "fibre".equalsIgnoreCase(o.getConnectionType()))
+                                .doOnNext(o -> logger.debug("PingPerfect offer mapped: {}", o));
+                    })
+                    // Log on any termination: complete or error
+                    .doFinally(sig -> {
+                        long elapsed = System.currentTimeMillis() - start;
+                        logger.info("PingPerfectService took {} ms ", elapsed);
+                    })
+                    .doOnError(err -> logger.error("PingPerfectService reactive error", err));
+        });
     }
 }

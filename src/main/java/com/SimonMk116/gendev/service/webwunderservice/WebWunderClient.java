@@ -14,7 +14,7 @@ public class WebWunderClient extends WebServiceGatewaySupport {
 
     private static final Logger logger = LoggerFactory.getLogger(WebWunderClient.class);
     private static final int MAX_RETRIES = 3;
-    private static final long RETRY_DELAY_MS = 1000;
+    private static final long RETRY_DELAY_MS = 500;
 
     public Output getInternetOffers(SearchRequests searchRequests) {
         // Prepare the request
@@ -37,7 +37,7 @@ public class WebWunderClient extends WebServiceGatewaySupport {
             try {
                 return (Output) getWebServiceTemplate().marshalSendAndReceive(request);
             } catch (SoapFaultClientException e) {
-                logger.warn("SOAP Fault encountered (Temporär nicht verfügbar). Retrying ... (Attempt " + (retryCount + 1) + "/" + MAX_RETRIES + ")");
+                logger.warn("SOAP Fault encountered (Temporär nicht verfügbar). Retrying ... (Attempt {}/" + MAX_RETRIES + ")", retryCount + 1);
                 retryCount++;
                 try {
                     Thread.sleep(RETRY_DELAY_MS);
@@ -50,7 +50,7 @@ public class WebWunderClient extends WebServiceGatewaySupport {
                     throw e; // Re-throw the exception after max retries
                 }*/
             } catch (WebServiceIOException e) {
-                logger.warn("IO Exception during SOAP request. Retrying ... (Attempt " + (retryCount + 1) + "/" + MAX_RETRIES + "): " + e.getMessage());
+                logger.warn("IO Exception during SOAP request. Retrying ... (Attempt {}/" + MAX_RETRIES + "): {}", retryCount + 1, e.getMessage());
                 retryCount++;
                 try {
                     Thread.sleep(RETRY_DELAY_MS);
@@ -63,7 +63,7 @@ public class WebWunderClient extends WebServiceGatewaySupport {
                     throw e; // Re-throw the exception after max retries
                 }*/
             } catch (Exception e) {
-                logger.warn("An unexpected error occurred during SOAP request. Not retrying: " + e.getMessage());
+                logger.warn("An unexpected error occurred during SOAP request. Not retrying: {}", e.getMessage());
                 return null;
             }
         }
