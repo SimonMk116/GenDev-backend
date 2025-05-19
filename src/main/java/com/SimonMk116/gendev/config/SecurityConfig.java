@@ -37,7 +37,7 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList(
-                "https://6000-firebase-studio-1747565885381.cluster-c23mj7ubf5fxwq6nrbev4ugaxa.cloudworkstations.dev",
+                "https://6000-firebase-studio-1747694501106.cluster-6vyo4gb53jczovun3dxslzjahs.cloudworkstations.dev",
                 "http://localhost:9002" // For your local Next.js dev
                 // Add other origins if needed
         ));
