@@ -17,7 +17,11 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/offers")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+        "https://6000-firebase-studio-1747565885381.cluster-c23mj7ubf5fxwq6nrbev4ugaxa.cloudworkstations.dev",
+        "http://localhost:9002",
+        "http://localhost:3001"
+})
 //sends results to the frontend on arrival (each page on their own immediately)
 public class OfferController {
 
@@ -34,7 +38,7 @@ public class OfferController {
         services.add(byteMeService);
         services.add(webWunderService);
         services.add(pingPerfectService);
-        services.add(servusSpeedClient);
+        //services.add(servusSpeedClient);
     }
 
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
