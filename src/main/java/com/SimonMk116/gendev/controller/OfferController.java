@@ -20,7 +20,8 @@ import java.util.List;
 @CrossOrigin(origins = {
         "https://6000-firebase-studio-1747565885381.cluster-c23mj7ubf5fxwq6nrbev4ugaxa.cloudworkstations.dev",
         "http://localhost:9002",
-        "http://localhost:3001"
+        "http://localhost:3001",
+        "https://studio.firebase.google.com"
 })
 //sends results to the frontend on arrival (each page on their own immediately)
 public class OfferController {
