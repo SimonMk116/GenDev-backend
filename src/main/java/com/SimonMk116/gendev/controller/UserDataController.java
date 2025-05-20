@@ -9,12 +9,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/user-activity")
-@CrossOrigin(origins = {
-        "https://6000-firebase-studio-1747694501106.cluster-6vyo4gb53jczovun3dxslzjahs.cloudworkstations.dev",
-        "http://localhost:9002",
-        "http://localhost:3001",
-        "https://studio.firebase.google.com",
-})
 public class UserDataController {
     private static final Logger activityLogger = LoggerFactory.getLogger("UserActivityLogger");
     private final ObjectMapper objectMapper = new ObjectMapper();
