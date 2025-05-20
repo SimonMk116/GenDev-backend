@@ -19,6 +19,7 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(authorizeRequests ->
                         authorizeRequests
+                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                 .requestMatchers("/api/offers/**").permitAll() // Allow unauthenticated access to /api/offers
                                 .requestMatchers(HttpMethod.POST, "/api/user-activity/log-search").permitAll()
                                 .anyRequest().authenticated() // All other requests require authentication
