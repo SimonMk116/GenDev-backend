@@ -1,5 +1,6 @@
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/Application.java
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/config/RestTemplateConfig.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/config/SecurityConfig.java
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/config/WebClientConfig.java
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/config/WebConfig.java
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/config/WebServiceConfig.java

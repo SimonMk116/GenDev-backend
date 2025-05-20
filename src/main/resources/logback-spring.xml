@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Define a property for the logs directory -->
+    <property name="LOGS_DIR" value="./logs"/>
+
+    <!-- Standard Console Appender -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- User Activity File Appender -->
+    <!-- This appender will write logs from UserActivityLogger to user_activity.log.jsonl -->
+    <!-- It expects the logged message itself to be a complete JSON string. -->
+    <appender name="USER_ACTIVITY_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS_DIR}/user_activity.log.jsonl</file> <!-- .jsonl suffix for JSON Lines format -->
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <!--
+                The pattern is just "%msg%n" because we assume the message
+                logged via UserActivityLogger.info(jsonString) is already a complete JSON object.
+                This ensures each line in the file is a valid JSON object.
+            -->
+            <pattern>%msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- daily rollover -->
+            <fileNamePattern>${LOGS_DIR}/archived/user_activity.%d{yyyy-MM-dd}.%i.log.jsonl.gz</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <!-- maxFileSize: The maximum size of the active log file before rolling over. -->
+                <maxFileSize>10MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <!-- keep 30 days' worth of history -->
+            <maxHistory>30</maxHistory>
+            <!-- totalSizeCap: Ensure total size of archived logs doesn't exceed this. -->
+            <totalSizeCap>200MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Configure the UserActivityLogger -->
+    <!-- It will send messages of level INFO and above to the USER_ACTIVITY_FILE appender. -->
+    <!-- additivity="false" prevents these logs from also being processed by the root logger (e.g., avoiding duplicate console output). -->
+    <logger name="UserActivityLogger" level="INFO" additivity="false">
+        <appender-ref ref="USER_ACTIVITY_FILE"/>
+    </logger>
+
+    <!-- Root logger configuration -->
+    <!-- All other logs (not specifically handled by other loggers) at INFO level and above will go to the CONSOLE. -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <!-- Example: You can set specific log levels for Spring framework packages -->
+    <!--
+    <logger name="org.springframework.web" level="DEBUG"/>
+    <logger name="org.hibernate" level="ERROR"/>
+    -->
+
+</configuration>
