@@ -13,8 +13,12 @@ import org.springframework.web.bind.annotation.*;
         "https://6000-firebase-studio-1747694501106.cluster-6vyo4gb53jczovun3dxslzjahs.cloudworkstations.dev",
         "http://localhost:9002",
         "http://localhost:3001",
-        "https://studio.firebase.google.com"
-})
+        "https://studio.firebase.google.com"},
+        methods = {RequestMethod.POST,
+        RequestMethod.OPTIONS},
+        allowedHeaders = {"Content-Type", "X-Requested-With", "Origin", "Accept"},
+        allowCredentials = "true"
+)
 public class UserDataController {
     private static final Logger activityLogger = LoggerFactory.getLogger("UserActivityLogger");
     private final ObjectMapper objectMapper = new ObjectMapper();
