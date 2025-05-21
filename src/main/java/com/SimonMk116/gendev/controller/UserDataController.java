@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/user-activity")
 @CrossOrigin(origins = {
         "https://6000-firebase-studio-1747694501106.cluster-6vyo4gb53jczovun3dxslzjahs.cloudworkstations.dev",
-        "https://6000-firebase-studio-1747694501106.cluster-6vyo4gb53jczovun3dxslzjahs.cloudworkstations.dev/api/user-activity/log-search",
         "http://localhost:9002",
         "http://localhost:3001",
         "https://studio.firebase.google.com"},
@@ -34,7 +33,7 @@ public class UserDataController {
             // Log serialization error
             System.err.println("Error serializing payload for logging: " + e.getMessage());
         }
-        System.out.println("Received user search activity (also to console): " + payload.toString());
+        System.out.println("Received user search activity: " + payload.toString());
         return ResponseEntity.ok().build();
     }
 }
