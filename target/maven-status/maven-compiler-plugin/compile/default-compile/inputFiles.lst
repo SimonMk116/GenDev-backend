@@ -5,7 +5,12 @@
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/config/WebConfig.java
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/config/WebServiceConfig.java
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/controller/OfferController.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/controller/UserDataController.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/dto/AddressDataDto.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/dto/FilterDataDto.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/dto/SearchLogPayloadDto.java
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/dto/SearchRequests.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/dto/SortCriteriaDataDto.java
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/dto/VerbynDichResponse.java
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/model/DetailedResponseData.java
 /home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/main/java/com/SimonMk116/gendev/model/InternetAngeboteRequestData.java

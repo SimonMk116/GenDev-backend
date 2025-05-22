@@ -39,7 +39,7 @@ public class OfferController {
         services.add(byteMeService);
         services.add(webWunderService);
         services.add(pingPerfectService);
-        //services.add(servusSpeedClient);
+        services.add(servusSpeedClient);
     }
 
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
