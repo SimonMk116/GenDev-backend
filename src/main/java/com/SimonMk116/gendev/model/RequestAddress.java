@@ -1,6 +1,8 @@
 package com.SimonMk116.gendev.model;
 
 
+import java.util.Objects;
+
 public class RequestAddress {
     private String strasse;
     private String hausnummer;
@@ -47,5 +49,21 @@ public class RequestAddress {
 
     public void setLand(String land) {
         this.land = land;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof RequestAddress that)) return false;
+        return Objects.equals(strasse, that.strasse) &&
+               Objects.equals(hausnummer, that.hausnummer) &&
+               Objects.equals(postleitzahl, that.postleitzahl) &&
+               Objects.equals(stadt, that.stadt) &&
+               Objects.equals(land, that.land);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(strasse, hausnummer, postleitzahl, stadt, land);
     }
 }

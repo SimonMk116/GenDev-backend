@@ -24,8 +24,8 @@ public class SecurityConfig {
                                 .requestMatchers(HttpMethod.POST, "/api/user-activity/log-search").permitAll()
                                 .anyRequest().authenticated() // All other requests require authentication
                 )
-                .csrf(AbstractHttpConfigurer::disable) // Disable CSRF if your API is stateless, common for SSE
-                .cors(withDefaults()); // Apply CORS configuration (uses your @CrossOrigin on the controller)
+                .csrf(AbstractHttpConfigurer::disable); // Disable CSRF if your API is stateless, common for SSE
+                //.cors(withDefaults()); // Apply CORS configuration (uses @CrossOrigin on the controller)
         return http.build();
     }
 }
