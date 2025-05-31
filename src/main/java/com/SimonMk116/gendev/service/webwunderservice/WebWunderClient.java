@@ -6,9 +6,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.ws.client.WebServiceIOException;
+import org.springframework.ws.client.core.WebServiceTemplate;
 import org.springframework.ws.client.core.support.WebServiceGatewaySupport;
 import org.springframework.ws.soap.client.SoapFaultClientException;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
+import reactor.util.retry.Retry;
 
+import java.time.Duration;
+
+/**
+ * Client service for interacting with the external "WebWunder" SOAP web service.
+ * This class extends {@link WebServiceGatewaySupport} to leverage Spring WS
+ * functionality for sending and receiving SOAP messages. It provides a reactive
+ * API for fetching internet offers, incorporating retry logic for transient
+ * SOAP-related errors.
+ */
 @Component
 public class WebWunderClient extends WebServiceGatewaySupport {
 
@@ -16,58 +29,79 @@ public class WebWunderClient extends WebServiceGatewaySupport {
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_DELAY_MS = 500;
 
-    public Output getInternetOffers(SearchRequests searchRequests) {
-        // Prepare the request
+    private final WebServiceTemplate webServiceTemplate;
+
+    /**
+     * Constructs a new {@code WebWunderClient} with the provided {@link WebServiceTemplate}.
+     * Spring will automatically inject the {@link WebServiceTemplate} bean, which should be
+     * configured with the appropriate marshaller and unmarshaller for the WebWunder WSDL.
+     *
+     * @param webServiceTemplate The configured {@link WebServiceTemplate} instance.
+     */
+    public WebWunderClient(WebServiceTemplate webServiceTemplate) {
+        this.webServiceTemplate = webServiceTemplate;
+    }
+
+    /**
+     * Asynchronously fetches internet offers from the WebWunder SOAP service.
+     * This method constructs the SOAP request, sends it, and processes the response
+     * reactively using {@link Mono}. It includes a retry mechanism for
+     * {@link SoapFaultClientException} (SOAP faults) and {@link WebServiceIOException}
+     * (network/IO errors during Web Service communication).
+     *
+     * @param searchRequests The {@link SearchRequests} DTO containing address details.
+     * @param connectionType The desired {@link ConnectionType} (e.g., DSL, Fiber) for the offer.
+     * @param installation A boolean indicating whether an installation service is desired.
+     * @return A {@link Mono} emitting an {@link Output} object containing the internet offers,
+     * or an empty {@link Mono} if an unhandled error occurs or retries are exhausted.
+     */
+    public Mono<Output> getInternetOffers(SearchRequests searchRequests, ConnectionType connectionType, boolean installation) {
+        LegacyGetInternetOffers request = new LegacyGetInternetOffers();
+        request.setInput(createInput(searchRequests, connectionType, installation));
+
+        return Mono.fromCallable(() -> (Output) webServiceTemplate.marshalSendAndReceive(request))
+                // Execute the potentially blocking SOAP call on a dedicated bounded elastic scheduler
+                .subscribeOn(Schedulers.boundedElastic())
+                // Configure reactive retry logic
+                .retryWhen(
+                        Retry.backoff(MAX_RETRIES, Duration.ofMillis(RETRY_DELAY_MS))
+                                .filter(ex -> ex instanceof SoapFaultClientException || ex instanceof WebServiceIOException)
+                                .onRetryExhaustedThrow((retry, signal) -> signal.failure())
+                )
+                .onErrorResume(e -> {
+                    logger.error("Unhandled error in getInternetOffersReactive: {}", e.getMessage(), e);
+                    return Mono.empty();
+                });
+    }
+
+    /**
+     * Creates an {@link Input} object for the WebWunder SOAP request from the provided
+     * {@link SearchRequests}, {@link ConnectionType}, and installation preference.
+     * This method maps the DTO fields to the generated SOAP types and handles country code conversion.
+     *
+     * @param searchRequests The {@link SearchRequests} DTO containing address details.
+     * @param connectionType The desired {@link ConnectionType} (e.g., DSL, Fiber).
+     * @param installation A boolean flag indicating whether installation service is desired.
+     * @return A populated {@link Input} object ready for the SOAP request.
+     */
+    private Input createInput(SearchRequests searchRequests, ConnectionType connectionType, boolean installation) {
         Address address = new Address();
         address.setStreet(searchRequests.getStreet());
         address.setHouseNumber(searchRequests.getHouseNumber());
         address.setCity(searchRequests.getCity());
         address.setPlz(searchRequests.getPlz());
+        try {
+            SupportedCountry countryEnum = SupportedCountry.valueOf(searchRequests.getLand().toUpperCase());
+            address.setCountryCode(countryEnum);
+        } catch (IllegalArgumentException e) {
+            logger.error("Invalid country code '{}' received in SearchRequests. Defaulting to DE. Error: {}", searchRequests.getLand(), e.getMessage());
+            address.setCountryCode(SupportedCountry.DE); // Fallback to a default if conversion fails
+        }
 
         Input input = new Input();
         input.setAddress(address);
-        input.setConnectionEnum(ConnectionType.DSL);
-        input.setInstallation(true);
-
-        LegacyGetInternetOffers request = new LegacyGetInternetOffers();
-        request.setInput(input);
-
-        int retryCount = 0;
-        while (retryCount < MAX_RETRIES) {
-            try {
-                return (Output) getWebServiceTemplate().marshalSendAndReceive(request);
-            } catch (SoapFaultClientException e) {
-                logger.warn("SOAP Fault encountered (Temporär nicht verfügbar). Retrying ... (Attempt {}/" + MAX_RETRIES + ")", retryCount + 1);
-                retryCount++;
-                try {
-                    Thread.sleep(RETRY_DELAY_MS);
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                    break; // Exit retry loop if interrupted
-                }
-                /*if (retryCount >= MAX_RETRIES) {
-                    logger.warn("Max retries reached for SOAP request. Failing.");
-                    throw e; // Re-throw the exception after max retries
-                }*/
-            } catch (WebServiceIOException e) {
-                logger.warn("IO Exception during SOAP request. Retrying ... (Attempt {}/" + MAX_RETRIES + "): {}", retryCount + 1, e.getMessage());
-                retryCount++;
-                try {
-                    Thread.sleep(RETRY_DELAY_MS);
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                    break; // Exit retry loop if interrupted
-                }
-                /*if (retryCount >= MAX_RETRIES) {
-                    logger.warn("Max retries reached for SOAP request due to IO issues. Failing.");
-                    throw e; // Re-throw the exception after max retries
-                }*/
-            } catch (Exception e) {
-                logger.warn("An unexpected error occurred during SOAP request. Not retrying: {}", e.getMessage());
-                return null;
-            }
-        }
-        logger.warn("Max retries reached for WebWunder SOAP request. Returning empty result.");
-        return null;
+        input.setConnectionEnum(connectionType);
+        input.setInstallation(installation);
+        return input;
     }
 }

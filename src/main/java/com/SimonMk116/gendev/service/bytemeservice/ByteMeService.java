@@ -23,12 +23,18 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 
+/**
+ * Service class responsible for fetching internet offers from the "ByteMe" provider.
+ * This service implements the {@link OfferController.InternetOfferService} interface
+ * and handles the specifics of calling the ByteMe API, including request construction,
+ * error handling with retries, and parsing of the CSV response.
+ */
 @Service
 public class ByteMeService implements OfferController.InternetOfferService {
 
     private static final Logger logger = LoggerFactory.getLogger(ByteMeService.class);
     private static final int MAX_RETRIES = 3;
-    private static final long RETRY_DELAY_MS = 1000;
+    private static final long RETRY_DELAY_MS = 500;
 
     @Value("${provider.byteme.api-key}")
     private String apiKey;
@@ -36,11 +42,29 @@ public class ByteMeService implements OfferController.InternetOfferService {
     @Value("${provider.byteme.api-url}")
     private String apiUrl;
 
+    private final RestTemplate restTemplate;
+
     /**
-     * Reactive method to fetch internet offers for a given address.
+     * Constructs a new {@code ByteMeService} with the provided {@link RestTemplate}.
+     * Spring will automatically inject the {@link RestTemplate} bean.
      *
-     * @param address the user input address to search offers for
-     * @return a {@link Flux} emitting {@link InternetOffer} objects
+     * @param restTemplate The {@link RestTemplate} instance to be used for synchronous HTTP communication.
+     */
+    public ByteMeService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * This implementation fetches internet offers from the ByteMe API using a non-blocking
+     * approach by deferring the execution of the API call and emitting offers as a {@link Flux}.
+     * It includes retry logic for transient network or server errors.
+     * </p>
+     *
+     * @param address The user-provided address for which to search offers.
+     * @return A {@link Flux} emitting {@link InternetOffer} objects found from the ByteMe provider.
+     * The Flux will be empty if no offers are found or if the API request fails after retries.
      */
     @Override
     public Flux<InternetOffer> getOffers(RequestAddress address) {
@@ -51,14 +75,17 @@ public class ByteMeService implements OfferController.InternetOfferService {
     }
 
     /**
-     * Makes an HTTP GET request to ByteMe provider API with retries and parses the CSV response.
+     * Makes an HTTP GET request to the ByteMe provider API with built-in retry mechanism.
+     * It attempts to fetch data {@code MAX_RETRIES} times in case of specific HTTP server errors
+     * (500, 503) or general {@link RestClientException}s.
+     * The response is expected to be in CSV format and is parsed into a list of {@link InternetOffer} objects.
      *
-     * @param address the user input address
-     * @return a list of parsed {@link InternetOffer} objects or empty if request fails
+     * @param address The user input address to construct the API request URL.
+     * @return A {@link List} of parsed {@link InternetOffer} objects. Returns an empty list
+     * if the request fails after all retries or if parsing encounters unrecoverable errors.
      */
     private List<InternetOffer> fetchOffersWithRetries(RequestAddress address) {
         Instant startTime = Instant.now();
-        RestTemplate restTemplate = new RestTemplate();
         String url = buildUrl(address);
 
         HttpHeaders headers = new HttpHeaders();
@@ -74,6 +101,7 @@ public class ByteMeService implements OfferController.InternetOfferService {
                 List<InternetOffer> result = new ArrayList<>(parseCsv(response.getBody()));
                 logger.info("ByteMeService: fetched {} offers in {} ms",
                         result.size(), Duration.between(startTime, Instant.now()).toMillis());
+
                 return result;
             } catch (HttpServerErrorException e) {
                 if (e.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR || e.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE) {
@@ -94,11 +122,13 @@ public class ByteMeService implements OfferController.InternetOfferService {
         return Collections.emptyList();
     }
 
+
     /**
-     * Constructs a properly encoded URL for querying the ByteMe API.
+     * Constructs a properly URL-encoded API endpoint string for the ByteMe service
+     * using the provided address details.
      *
-     * @param address user address
-     * @return the fully constructed URL
+     * @param address The {@link RequestAddress} object containing the address details.
+     * @return A fully constructed and URL-encoded string representing the API request URL.
      */
     private String buildUrl(RequestAddress address) {
         return apiUrl
@@ -109,13 +139,16 @@ public class ByteMeService implements OfferController.InternetOfferService {
     }
 
     /**
-     * Parses a CSV string response into a collection of {@link InternetOffer} objects.
+     * Parses a raw CSV string response obtained from the ByteMe API into a collection
+     * of {@link InternetOffer} objects. It handles potential parsing errors and logs warnings
+     * for invalid or missing mandatory fields in individual records.
      *
-     * @param csvData CSV-formatted string from ByteMe API
-     * @return parsed offers as a set
+     * @param csvData The CSV-formatted string received from the ByteMe API.
+     * @return A {@link Collection} of {@link InternetOffer} objects successfully parsed from the CSV data.
+     * Returns an empty collection if the input CSV data is malformed or empty, or if no offers can be parsed.
      */
     private Collection<InternetOffer> parseCsv(String csvData) {
-        Set<InternetOffer> offers = new HashSet<>();
+        List<InternetOffer> offers = new ArrayList<>();
         try {
             CSVParser parser = new CSVParser(new StringReader(csvData),
                     CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build());
@@ -130,25 +163,30 @@ public class ByteMeService implements OfferController.InternetOfferService {
                     continue;
                 }
 
-                InternetOffer offer = new InternetOffer(
-                        record.get("productId"),
-                        record.get("providerName"),
-                        Integer.parseInt(record.get("speed")),
-                        Integer.parseInt(record.get("monthlyCostInCent")),
-                        Integer.parseInt(record.get("afterTwoYearsMonthlyCost")),
-                        parseOptionalInt(record.get("durationInMonths")),
-                        record.isMapped("connectionType") ? record.get("connectionType") : null,
-                        parseOptionalBoolean(record.get("installationService")),
-                        record.isMapped("tv") ? record.get("tv") : null,
-                        parseOptionalInt(record.get("limitFrom")),
-                        parseOptionalInt(record.get("maxAge")),
-                        record.isMapped("voucherType") ? record.get("voucherType") : null,
-                        parseOptionalInt(record.get("voucherValue"))
-                );
+                try {
+                    InternetOffer offer = InternetOffer.builder()
+                            .productId(record.get("productId"))
+                            .providerName(record.get("providerName"))
+                            .speed(Integer.parseInt(record.get("speed")))
+                            .monthlyCostInCent(Integer.parseInt(record.get("monthlyCostInCent")))
+                            .afterTwoYearsMonthlyCost(Integer.parseInt(record.get("afterTwoYearsMonthlyCost")))
+                            // Optional fields, using parseOptionalInt/Boolean and direct check for mapping
+                            .durationInMonths(parseOptionalInt(record.get("durationInMonths")))
+                            .connectionType(parseOptionalString(record.get("connectionType")))
+                            .installationService(parseOptionalBoolean(record.get("installationService")))
+                            .tv(parseOptionalString(record.get("tv")))
+                            .limitFrom(parseOptionalInt(record.get("limitFrom")))
+                            .maxAge(parseOptionalInt(record.get("maxAge")))
+                            .voucherType(record.isMapped("voucherType") ? record.get("voucherType") : null)
+                            .voucherValue(parseOptionalInt(record.get("voucherValue")))
+                            .build();
 
-                offers.add(offer);
+                    offers.add(offer);
+                } catch (NumberFormatException e) {
+                    logger.warn("ByteMe CSV: Invalid numeric data in record: {}. Skipping record. Error: {}", record, e.getMessage());
+                }
             }
-        } catch (Exception e) {
+        } catch (Exception e) { // Catching more general exceptions for CSV parsing issues
             logger.warn("ByteMe CSV parsing failed: {}", e.getMessage());
         }
         return offers;
@@ -162,12 +200,16 @@ public class ByteMeService implements OfferController.InternetOfferService {
         }
     }
 
+    private static String parseOptionalString(String value) {
+        return (value == null || value.isBlank() || "null".equalsIgnoreCase(value.trim())) ? null : value;
+    }
+
     private static Integer parseOptionalInt(String value) {
-        return (value == null || value.isBlank()) ? null : Integer.parseInt(value);
+        return (value == null || value.isBlank()) || "null".equalsIgnoreCase(value.trim()) ? null : Integer.parseInt(value);
     }
 
     private static Boolean parseOptionalBoolean(String value) {
-        return (value == null || value.isBlank()) ? null : Boolean.parseBoolean(value);
+        return (value == null || value.isBlank()) || "null".equalsIgnoreCase(value.trim()) ? null : Boolean.parseBoolean(value);
     }
 
     private boolean isNullOrEmpty(CSVRecord record, String fieldName) {

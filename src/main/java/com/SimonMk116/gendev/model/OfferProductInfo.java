@@ -1,73 +1,28 @@
 package com.SimonMk116.gendev.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
+/**
+ * Represents the product information details for an internet offer.
+ * Used within ServusSpeedProduct.
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@JsonInclude(JsonInclude.Include.NON_NULL) // Exclude fields with null values from JSON output
+@JsonIgnoreProperties(ignoreUnknown = true) // Ignore any unknown JSON fields during deserialization
 public class OfferProductInfo {
-    private int speed;
-    private int contractDurationInMonths;
+    private Integer speed;
+    private Integer contractDurationInMonths;
     private String connectionType;
     private String tv;
     private Integer limitFrom;
     private Integer maxAge;
 
-
-
-    public int getSpeed() {
-        return speed;
-    }
-
-    public void setSpeed(int speed) {
-        this.speed = speed;
-    }
-
-    public int getContractDurationInMonths() {
-        return contractDurationInMonths;
-    }
-
-    public void setContractDurationInMonths(int contractDurationInMonths) {
-        this.contractDurationInMonths = contractDurationInMonths;
-    }
-
-    public String getConnectionType() {
-        return connectionType;
-    }
-
-    public void setConnectionType(String connectionType) {
-        this.connectionType = connectionType;
-    }
-
-    public String getTv() {
-        return tv;
-    }
-
-    public void setTv(String tv) {
-        this.tv = tv;
-    }
-
-    public Integer getLimitFrom() {
-        return limitFrom;
-    }
-
-    public void setLimitFrom(Integer limitFrom) {
-        this.limitFrom = limitFrom;
-    }
-
-    public Integer getMaxAge() {
-        return maxAge;
-    }
-
-    public void setMaxAge(Integer maxAge) {
-        this.maxAge = maxAge;
-    }
-
-    @Override
-    public String toString() {
-        return "OfferProductInfo{" +
-                "speed=" + speed +
-                ", contractDurationInMonths=" + contractDurationInMonths +
-                ", connectionType='" + connectionType + '\'' +
-                ", tv='" + tv + '\'' +
-                ", limitFrom=" + limitFrom +
-                ", maxAge=" + maxAge +
-                '}';
-    }
 }

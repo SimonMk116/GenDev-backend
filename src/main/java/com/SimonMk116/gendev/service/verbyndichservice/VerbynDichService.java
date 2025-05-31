@@ -21,12 +21,16 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Service for fetching internet offers from the external VerbynDich provider.
- * Uses WebClient and reactive streams (Flux) to support asynchronous pagination and retry logic.
+ * Service for fetching internet offers from the external "VerbynDich" provider.
+ * This service interacts with the VerbynDich API, handling paginated responses
+ * using reactive streams ({@link Flux}) and employing retry logic for transient
+ * network or server issues. It parses offer details from text descriptions
+ * using regular expressions.
  */
 @Service
 public class VerbynDichService implements OfferController.InternetOfferService {
@@ -39,10 +43,24 @@ public class VerbynDichService implements OfferController.InternetOfferService {
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_DELAY_MS = 300;
 
-
+    // Regex patterns for parsing product description text
+    static final Pattern speedPattern = Pattern.compile("(\\d+) Mbit/s");
+    static final Pattern pricePattern = Pattern.compile("(\\d+)€ im Monat");
+    static final Pattern afterTwoYearsPricePattern = Pattern.compile("monatliche Preis (\\d+)€");
+    static final Pattern durationPattern = Pattern.compile("Mindestvertragslaufzeit (\\d+) Monate");
+    static final Pattern maxAgePattern = Pattern.compile("nur für Personen unter (\\d+)");
+    static final Pattern discountPattern = Pattern.compile("einmaligen Rabatt von (\\d+)");
+    static final Pattern discountCapPattern = Pattern.compile("maximale[rn]? Rabatt beträgt (\\d+)[€E]");
+    static final Pattern tvPattern = Pattern.compile("Fernsehsender enthalten[\\s:]*([^.,\\n]+)[.,\\n]?");
+    static final Pattern connectionTypePattern = Pattern.compile("(DSL|Cable|Fiber)", Pattern.CASE_INSENSITIVE);
+    static final Pattern limitFromPattern = Pattern.compile("Ab (\\d+)GB pro Monat");
+    static final Pattern minimumOrderValuePattern = Pattern.compile("Mindestbestellwert beträgt (\\d+)€");
 
     /**
-     * Constructor for injecting a WebClient builder.
+     * Constructs a new {@code VerbynDichService} and configures its {@link WebClient}.
+     * The {@link WebClient} is built with a base URL for the VerbynDich API.
+     *
+     * @param webClientBuilder The Spring-provided {@link WebClient.Builder} for building the WebClient instance.
      */
     @Autowired
     public VerbynDichService(WebClient.Builder webClientBuilder) {
@@ -51,25 +69,18 @@ public class VerbynDichService implements OfferController.InternetOfferService {
                 //.clientConnector(new ReactorClientHttpConnector()) // Use the configured HttpClient
                 .build();
     }
-
-    // Regex patterns for parsing product description text
-    static Pattern speedPattern = Pattern.compile("(\\d+) Mbit/s");
-    static Pattern pricePattern = Pattern.compile("(\\d+)€ im Monat");
-    static Pattern afterTwoYearsPricePattern = Pattern.compile("monatliche Preis (\\d+)€");
-    static Pattern durationPattern = Pattern.compile("Mindestvertragslaufzeit (\\d+) Monate");
-    static Pattern maxAgePattern = Pattern.compile("nur für Personen unter (\\d+)");
-    static Pattern discountPercentagePattern = Pattern.compile("Rabatt von (\\d+)%");
-    static Pattern discountDurationPattern = Pattern.compile("bis zum (\\d+)\\. Monat");
-    static Pattern discountCapPattern = Pattern.compile("maximale[rn]? Rabatt beträgt (\\d+)[€E]");
-    static Pattern tvPattern = Pattern.compile("Fernsehsender enthalten[\\s:]+(\\d+)");
-    static Pattern connectionTypePattern = Pattern.compile("(DSL|Kabel|Fiber|Glasfaser)", Pattern.CASE_INSENSITIVE);
-    static Pattern limitFromPattern = Pattern.compile("Ab (\\d+)GB pro Monat");
-
     /**
-     * Maps a VerbynDichResponse object to an InternetOffer using regex to extract details from the description.
+     * Maps a {@link VerbynDichResponse} object received from the VerbynDich API to a standardized
+     * {@link InternetOffer} domain object. This method extracts various offer details by
+     * applying regular expressions to the {@code description} field of the response.
+     *
+     * @param response The {@link VerbynDichResponse} object containing raw offer data and a description string.
+     * @return An {@link InternetOffer} object populated with details parsed from the response.
+     * Monetary values (cost, voucher, discount) are converted from Euros to cents.
+     * Defaults are used for fields not found in the description or not applicable.
      */
     private InternetOffer mapToInternetOffer(VerbynDichResponse response) {
-        //logger.info("mapToInternetOffer {}", response.toString());
+        logger.info("mapToInternetOffer {}", response.toString());
         String description = response.getDescription();
 
         // Initialize default values
@@ -78,12 +89,13 @@ public class VerbynDichService implements OfferController.InternetOfferService {
         int afterTwoYearsMonthlyCost = 0;
         int durationInMonths = 0;
         Integer maxAge = null;
-        int discountPercentage = 0;
-        int discountDuration = 0;
+        int voucher = 0;
         int discountCap = 0;
         String tv = null;
         String connectionType = null;
         int limitFrom = 0;
+        int minimumOrderValue = 0;
+
 
         Matcher matcher;
 
@@ -108,11 +120,8 @@ public class VerbynDichService implements OfferController.InternetOfferService {
             }
         }
 
-        matcher = discountPercentagePattern.matcher(description);
-        if (matcher.find()) discountPercentage = Integer.parseInt(matcher.group(1));
-
-        matcher = discountDurationPattern.matcher(description);
-        if (matcher.find()) discountDuration = Integer.parseInt(matcher.group(1));
+        matcher = discountPattern.matcher(description);
+        if (matcher.find()) voucher = Integer.parseInt(matcher.group(1));
 
         matcher = discountCapPattern.matcher(description);
         if (matcher.find()) discountCap = Integer.parseInt(matcher.group(1));
@@ -126,35 +135,56 @@ public class VerbynDichService implements OfferController.InternetOfferService {
         matcher = limitFromPattern.matcher(description);
         if (matcher.find()) limitFrom = Integer.parseInt(matcher.group(1));
 
-        return new InternetOffer(
-                response.getProduct(),
-                //TODO might want to add Id
-                speed,
-                monthlyCost * 100,
-                afterTwoYearsMonthlyCost * 100,
-                durationInMonths,
-                maxAge,
-                discountPercentage,
-                discountDuration,
-                discountCap,
-                tv,
-                connectionType,
-                limitFrom
-        );
+        matcher = minimumOrderValuePattern.matcher(description);
+        if (matcher.find()) minimumOrderValue = Integer.parseInt(matcher.group(1));
+
+        return InternetOffer.builder()
+                .providerName(response.getProduct())
+                .productId("VerbynDich-" + UUID.randomUUID())
+                .speed(speed)
+                .monthlyCostInCent(monthlyCost * 100) // Convert to cents
+                .afterTwoYearsMonthlyCost(afterTwoYearsMonthlyCost * 100) // Convert to cents
+                .durationInMonths(durationInMonths)
+                .maxAge(maxAge)
+                .tv(tv)
+                .connectionType(connectionType)
+                .limitFrom(limitFrom)
+                .discountCap(discountCap)
+                .installationService(false)
+                .minOrderValueInCent(minimumOrderValue * 100) // Convert to cents
+                .voucherType("ABSOLUTE")
+                .voucherValue(voucher * 100) // Convert to cents
+                .build();
     }
 
     /**
-     * A custom iterable that generates Flux streams for each page of results.
+     * A custom {@link Iterable} implementation that generates {@link Flux} streams for each
+     * page of results from the VerbynDich API. This class manages the pagination state
+     * (e.g., current page and whether the last page has been reached).
+     * for sequential fetching of pages within a parallel stream.
      */
-    class PageProvider implements Iterable<Flux<InternetOffer>> {
+    public class PageProvider implements Iterable<Flux<InternetOffer>> {
         String addressData;
+        // Volatile to ensure visibility of changes across threads in a concurrent context.
         volatile boolean done = false;
         volatile int nextPage = 0;
 
+        /**
+         * Constructs a {@code PageProvider} for a specific set of address data.
+         *
+         * @param addressData A semicolon-separated string of address components
+         * (street;houseNumber;city;postalCode) required by the VerbynDich API.
+         */
         public PageProvider(String addressData) {
             this.addressData = addressData;
         }
 
+        /**
+         * Returns an {@link Iterator} over {@link Flux} streams. Each call to {@code next()}
+         * will return a Flux that attempts to fetch the next logical page of offers.
+         *
+         * @return An {@link Iterator} that provides {@link Flux} streams for fetching pages of internet offers.
+         */
         @Override
         public Iterator<Flux<InternetOffer>> iterator() {
             return new Iterator<Flux<InternetOffer>>() {
@@ -172,8 +202,16 @@ public class VerbynDichService implements OfferController.InternetOfferService {
     }
 
     /**
-            * Loads a single page of offers and returns them as a Flux.
-            * Applies retry and timeout logic.
+     * Loads a single page of internet offers from the VerbynDich API.
+     * This method constructs the URL with API key and page number, sends the address data
+     * as the request body, and applies reactive retry logic for transient errors
+     * (network timeouts, 5xx server errors, 429 Too Many Requests).
+     * It also checks the {@code isLast()} flag in the response to signal the end of pagination.
+     *
+     * @param provider The {@link PageProvider} instance controlling the pagination state.
+     * @param page The specific page number to load.
+     * @return A {@link Flux} of {@link InternetOffer} objects for the specified page.
+     * Returns an empty Flux if the request fails persistently or contains no valid offers.
      */
     Flux<InternetOffer> pageLoader(PageProvider provider, int page) {
         String url = String.format(
@@ -202,31 +240,39 @@ public class VerbynDichService implements OfferController.InternetOfferService {
                 .doOnError(error -> logger.error("Error fetching page {}: {}", page, error.getMessage()))
                 //.doOnComplete(() -> logger.info("Successfully processed page {}", page))
                 .map(this::mapToInternetOffer)
-                .doOnNext(offer -> logger.trace("Mapped offer from page {}: {}", page, offer))
-                ;
+                .doOnNext(offer -> {
+                    //logger.info("offer {}", offer);
+                    logger.trace("Mapped offer from page {}: {}", page, offer);
+                });
     }
 
-    static int PARALLEL = 5;    //5 or 6
+    static int PARALLEL = 5;
 
     /**
-     * Fetches all available internet offers for the given address using concurrent paginated requests.
+     * {@inheritDoc}
+     * <p>
+     * This implementation fetches all available internet offers from the VerbynDich provider
+     * for the given address. It orchestrates concurrent paginated requests using a
+     * {@link PageProvider} to manage pagination state and {@link Flux#merge} to combine
+     * results from multiple parallel streams.
+     * </p>
      *
-     * @param address The user's address
-     * @return A Flux stream of InternetOffer objects
+     * @param address The user's {@link RequestAddress} to find offers for.
+     * @return A {@link Flux} stream of {@link InternetOffer} objects, representing
+     * all available offers from the VerbynDich provider for the specified address.
+     * The stream completes once all pages have been fetched and processed.
      */
     @Override
     public Flux<InternetOffer> getOffers(RequestAddress address) {
         Instant startTime = Instant.now();
-        String addressData =
-                address.getStrasse() + ";" +
-                address.getHausnummer() + ";" +
-                address.getStadt() + ";" +
-                address.getPostleitzahl();
+        String addressData = String.join(";",
+                address.getStrasse(),
+                address.getHausnummer(),
+                address.getStadt(),
+                address.getPostleitzahl()
+        );
 
         PageProvider pageProvider = new PageProvider(addressData);
-        if (false) return pageProvider.iterator().next();
-
-        if (false) return Flux.concat(pageProvider);
 
         List<Flux<InternetOffer>> parallelPageReaders = new ArrayList<>();
         for (int i = 0; i < PARALLEL; i++) {

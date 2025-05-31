@@ -1,321 +1,112 @@
 package com.SimonMk116.gendev.model;
 
-import java.util.Objects;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-
+/**
+ * Represents a single internet offer from a provider, detailing various aspects of the plan.
+ * This class serves as a data model for transferring and displaying internet service options.
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class InternetOffer {
+    /**
+     * A unique identifier for the internet product.
+     */
     private String productId;
+    /**
+     * The name of the internet service provider offering this plan.
+     */
     private String providerName;
+    /**
+     * The advertised download speed of the internet connection, typically in Mbps.
+     */
     private int speed;
+    /**
+     * The monthly cost of the offer during the initial contract period, in cents.
+     */
     private int monthlyCostInCent;
+    /**
+     * The monthly cost of the offer after the initial two-year contract period, in cents.
+     */
     private int afterTwoYearsMonthlyCost;
+    /**
+     * The type of internet connection (e.g., "DSL", "FIBER", "CABLE", "MOBILE" ).
+     */
     private String connectionType;
-    private int durationInMonths;
-    private boolean installationService;
+    /**
+     * The minimum contract duration for this offer, in months.
+     * Null if no specific duration is advertised or applicable.
+     */
+    private Integer durationInMonths;
+    /**
+     * Indicates whether an installation service is included or available with this offer.
+     * True if included/available, false otherwise.
+     */
+    private Boolean installationService;
+    /**
+     * Describes any TV services or packages included with the internet offer.
+     * E.g., "Pong TV Premium", "ByteLive Plus".
+     */
     private String tv;
+    /**
+     * The high-speed data limit after which this offer throttles speed.
+     * Null if not applicable.
+     */
     private Integer limitFrom;
+    /**
+     * The maximum age limit for specific customer groups eligible for this offer.
+     * Null if no age restriction applies.
+     */
     private Integer maxAge;
-    private String voucherType; // "PERCENTAGE" or "ABSOLUTE"
+    /**
+     * The type of voucher applied to the offer.
+     * Can be "PERCENTAGE" for a percentage-based discount or "ABSOLUTE" for a fixed amount discount.
+     * Null if no voucher applies.
+     */
+    private String voucherType;
+    /**
+     * The value of the voucher.
+     * Interpretation depends on {@code voucherType} (e.g., 10 for 10% or 10 EUR).
+     */
     private Integer voucherValue;
-    private int discount;
+    /**
+     * General discount amount.
+     */
+    private Integer discount;
+    /**
+     * The duration for which the {@code discount} is applied, in months.
+     */
     private int discountDuration;
+    /**
+     * The maximum monetary value (in cents) that the discount can reach.
+     * Relevant for percentage-based discounts.
+     */
     private int discountCap;
-    //private String voucherType; //use above
-    private Integer percentage; // only for percentageVoucher
-    private Integer maxDiscountInCent; // only for percentageVoucher
-    private Integer discountInCent; // only for absoluteVoucher
-    private Integer minOrderValueInCent; // only for absoluteVoucher
+    /**
+     * The percentage value of the discount for "PERCENTAGE" type vouchers.
+     * Only applicable when {@code voucherType} is "PERCENTAGE".
+     */
+    private Integer percentage;
+    /**
+     * The maximum discount value in cents for "PERCENTAGE" type vouchers.
+     * Only applicable when {@code voucherType} is "PERCENTAGE".
+     */
+    private Integer maxDiscountInCent;
+    /**
+     * The absolute discount value in cents for "ABSOLUTE" type vouchers.
+     * Only applicable when {@code voucherType} is "ABSOLUTE".
+     */
+    private Integer discountInCent;
+    /**
+     * The minimum order value in cents required to apply the "ABSOLUTE" type voucher.
+     * Only applicable when {@code voucherType} is "ABSOLUTE".
+     */
+    private Integer minOrderValueInCent;
 
 
-    //Constructors
-    //Default
-    public InternetOffer() {
-    }
-
-    //ByteMe
-    public InternetOffer(
-            String productId,
-            String providerName,
-            int speed,
-            int monthlyCostInCent,
-            int afterTwoYearsMonthlyCost,
-            int durationInMonths,
-            String connectionType,
-            boolean installationService,
-            String tv,
-            Integer limitFrom,
-            Integer maxAge,
-            String voucherType,
-            Integer voucherValue
-    ) {
-        this.productId = productId;
-        this.providerName = providerName;
-        this.speed = speed;
-        this.monthlyCostInCent = monthlyCostInCent;
-        this.afterTwoYearsMonthlyCost = afterTwoYearsMonthlyCost;
-        this.durationInMonths = durationInMonths;
-        this.connectionType = connectionType;
-        this.installationService = installationService;
-        this.tv = tv;
-        this.limitFrom = limitFrom;
-        this.maxAge = maxAge;
-        this.voucherType = voucherType;
-        this.voucherValue = voucherValue;
-    }
-
-    //PingPerfect
-    public InternetOffer(
-            String providerName,
-            String productId,
-            int speed,
-            int durationInMonths,
-            String connectionType,
-            String tv,
-            Integer limitFrom,
-            Integer maxAge,
-            int monthlyCostInCent,
-            boolean installationService
-    ) {
-        this.providerName = providerName;
-        this.productId = productId;
-        this.speed = speed;
-        this.durationInMonths = durationInMonths;
-        this.connectionType = connectionType;
-        this.tv = tv;
-        this.limitFrom = limitFrom;
-        this.maxAge = maxAge;
-        this.monthlyCostInCent = monthlyCostInCent;
-        this.installationService = installationService;
-    }
-
-    //ServusSpeed
-    public InternetOffer(
-            String productId,
-            String providerName,
-            int speed,
-            int durationInMonths,
-            String connectionType,
-            String tv,
-            int limitFrom,
-            int maxAge,
-            int monthlyCostInCent,
-            boolean installationService,
-            int discount
-    ) {
-        this.productId = productId;
-        this.providerName = providerName;
-        this.speed = speed;
-        this.durationInMonths = durationInMonths;
-        this.connectionType = connectionType;
-        this.tv = tv;
-        this.limitFrom = limitFrom;
-        this.maxAge = maxAge;
-        this.monthlyCostInCent = monthlyCostInCent;
-        this.installationService = installationService;
-        this.discount = discount;
-    }
-
-    //VerbynDich
-    public InternetOffer(
-            String providerName,
-            int speed,
-            int monthlyCostInCent,
-            int afterTwoYearsMonthlyCost,
-            int durationInMonths,
-            Integer maxAge,
-            int discountPercentage,
-            int discountDuration,
-            int discountCap,
-            String tv,
-            String connectionType,
-            int limitFrom
-    ) {
-        this.providerName = providerName;
-        this.speed = speed;
-        this.monthlyCostInCent = monthlyCostInCent;
-        this.afterTwoYearsMonthlyCost = afterTwoYearsMonthlyCost;
-        this.durationInMonths = durationInMonths;
-        this.maxAge = maxAge;
-        this.discount = discountPercentage;
-        this.discountDuration = discountDuration;
-        this.discountCap = discountCap;
-        this.tv = tv;
-        this.connectionType = connectionType;
-        this.limitFrom = limitFrom;
-    }
-
-    //WebWunder
-    public InternetOffer(String productId,
-                         String providerName,
-                         int speed,
-                         int monthlyCostInCent,
-                         int afterTwoYearsMonthlyCost,
-                         Integer durationInMonths,
-                         String connectionType,
-                         String voucherType,
-                         Integer percentage,
-                         Integer maxDiscountInCent,
-                         Integer discountInCent,
-                         Integer minOrderValueInCent) {
-        this.productId = productId;
-        this.providerName = providerName;
-        this.speed = speed;
-        this.monthlyCostInCent = monthlyCostInCent;
-        this.afterTwoYearsMonthlyCost = afterTwoYearsMonthlyCost;
-        this.durationInMonths = durationInMonths;
-        this.connectionType = connectionType;
-        this.voucherType = voucherType;
-        this.percentage = percentage;
-        this.maxDiscountInCent = maxDiscountInCent;
-        this.discountInCent = discountInCent;
-        this.minOrderValueInCent = minOrderValueInCent;
-    }
-
-    //Getters & Setters
-    public String getProductId() {
-        return productId;
-    }
-    public void setProductId(String productId) {
-        this.productId = productId;
-    }
-    public String getProviderName() {
-        return providerName;
-    }
-    public void setProviderName(String providerName) {
-        this.providerName = providerName;
-    }
-    public int getSpeed() {
-        return speed;
-    }
-    public void setSpeed(int speed) {
-        this.speed = speed;
-    }
-    public int getMonthlyCostInCent() {
-        return monthlyCostInCent;
-    }
-    public void setMonthlyCostInCent(int price) {
-        this.monthlyCostInCent = price;
-    }
-    public int getAfterTwoYearsMonthlyCost() {
-        return afterTwoYearsMonthlyCost;
-    }
-    public void setAfterTwoYearsMonthlyCost(int afterTwoYearsMonthlyCost) {
-        this.afterTwoYearsMonthlyCost = afterTwoYearsMonthlyCost;
-    }
-    public String getConnectionType() {
-        return connectionType;
-    }
-    public void setConnectionType(String connectionType) {
-        this.connectionType = connectionType;
-    }
-    public int getDurationInMonths() {
-        return durationInMonths;
-    }
-    public void setDurationInMonths(int durationInMonths) {
-        this.durationInMonths = durationInMonths;
-    }
-    public boolean isInstallationService() {
-        return installationService;
-    }
-    public void setInstallationService(boolean installationService) {
-        this.installationService = installationService;
-    }
-    public Integer getLimitFrom() {
-        return limitFrom;
-    }
-    public void setLimitFrom(Integer limitFrom) {
-        this.limitFrom = limitFrom;
-    }
-    public Integer getMaxAge() {
-        return maxAge;
-    }
-    public void setMaxAge(Integer maxAge) {
-        this.maxAge = maxAge;
-    }
-    public String getVoucherType() {
-        return voucherType;
-    }
-    public void setVoucherType(String voucherType) {
-        this.voucherType = voucherType;
-    }
-    public Integer getVoucherValue() {
-        return voucherValue;
-    }
-    public void setVoucherValue(Integer voucherValue) {
-        this.voucherValue = voucherValue;
-    }
-    public int getDiscount() {
-        return discount;
-    }
-    public void setDiscount(int discount) {
-        this.discount = discount;
-    }
-    public String getTv() {
-        return tv;
-    }
-    public void setTv(String tv) {
-        this.tv = tv;
-    }
-    public int getDiscountDuration() {
-        return discountDuration;
-    }
-    public void setDiscountDuration(int discountDuration) {
-        this.discountDuration = discountDuration;
-    }
-    public int getDiscountCap() {
-        return discountCap;
-    }
-    public void setDiscountCap(int discountCap) {
-        this.discountCap = discountCap;
-    }
-    public Integer getPercentage() {
-        return percentage;
-    }
-    public void setPercentage(Integer percentage) {
-        this.percentage = percentage;
-    }
-    public Integer getMaxDiscountInCent() {
-        return maxDiscountInCent;
-    }
-    public void setMaxDiscountInCent(Integer maxDiscountInCent) {
-        this.maxDiscountInCent = maxDiscountInCent;
-    }
-    public Integer getDiscountInCent() {
-        return discountInCent;
-    }
-    public void setDiscountInCent(Integer discountInCent) {
-        this.discountInCent = discountInCent;
-    }
-    public Integer getMinOrderValueInCent() {
-        return minOrderValueInCent;
-    }
-    public void setMinOrderValueInCent(Integer minOrderValueInCent) {
-        this.minOrderValueInCent = minOrderValueInCent;
-    }
-
-
-    @Override
-    public String toString() {
-        return '\'' + "InternetOffer{" +
-                "productId='" + productId + '\'' +
-                ", providerName='" + providerName + '\'' +
-                ", speed=" + speed +
-                ", monthlyCostInCent=" + monthlyCostInCent +
-                ", afterTwoYearsMonthlyCost=" + afterTwoYearsMonthlyCost +
-                '}' + "\n";
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof InternetOffer that)) return false;
-        return speed == that.speed &&
-                Objects.equals(providerName, that.providerName) &&
-                Objects.equals(productId, that.productId);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(productId, providerName, speed);
-    }
 }

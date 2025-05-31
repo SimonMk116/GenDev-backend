@@ -1,52 +1,21 @@
 package com.SimonMk116.gendev.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ServusSpeedProduct {
     private String providerName;
-    private OfferProductInfo productInfo;
+    public OfferProductInfo productInfo;
     private OfferPricingDetails pricingDetails;
-    private int discount;
-
-
-    public String getProviderName() {
-        return providerName;
-    }
-
-    public void setProviderName(String providerName) {
-        this.providerName = providerName;
-    }
-
-    public OfferProductInfo getProductInfo() {
-        return productInfo;
-    }
-
-    public void setProductInfo(OfferProductInfo productInfo) {
-        this.productInfo = productInfo;
-    }
-
-    public OfferPricingDetails getPricingDetails() {
-        return pricingDetails;
-    }
-
-    public void setPricingDetails(OfferPricingDetails pricingDetails) {
-        this.pricingDetails = pricingDetails;
-    }
-
-    public int getDiscount() {
-        return discount;
-    }
-
-    public void setDiscount(int discount) {
-        this.discount = discount;
-    }
-
-    @Override
-    public String toString() {
-        return "ServusSpeedProduct{" +
-                "providerName='" + providerName + '\'' +
-                ", productInfo=" + productInfo +
-                ", pricingDetails=" + pricingDetails +
-                ", discount=" + discount +
-                '}';
-    }
+    private Integer discount;
 }

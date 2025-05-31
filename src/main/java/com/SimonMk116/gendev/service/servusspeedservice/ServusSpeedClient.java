@@ -1,13 +1,15 @@
 package com.SimonMk116.gendev.service.servusspeedservice;
 
 import com.SimonMk116.gendev.controller.OfferController;
-import com.SimonMk116.gendev.model.DetailedResponseData;
+import com.SimonMk116.gendev.dto.DetailedResponseData;
 import com.SimonMk116.gendev.model.InternetOffer;
 import com.SimonMk116.gendev.model.RequestAddress;
 import com.SimonMk116.gendev.model.ServusSpeedProduct;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import io.netty.handler.timeout.ReadTimeoutException;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -30,58 +32,64 @@ import reactor.util.retry.Retry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+/**
+ * Service client for integrating with the "ServusSpeed" internet offer provider.
+ * This class implements {@link OfferController.InternetOfferService} and is responsible for
+ * fetching internet offers from ServusSpeed using both synchronous (RestTemplate) and
+ * reactive (WebClient) HTTP calls. It includes logic for fetching available product IDs,
+ * fetching detailed product information in parallel, and an in-memory caching mechanism
+ * for fetched offers.
+ */
 @Service
 @RequiredArgsConstructor
 public class ServusSpeedClient implements OfferController.InternetOfferService {
 
+    /**
+     * {@link WebClient} instance, qualified for ServusSpeed, used for reactive HTTP calls
+     * to fetch detailed product information.
+     */
     @Autowired
     @Qualifier("servusSpeedWebClient")
-    private WebClient webClient;
+    private final WebClient webClient;
 
+    /**
+     * {@link RestTemplate} instance, qualified for ServusSpeed, used for synchronous HTTP calls
+     * to fetch available product IDs.
+     */
     @Autowired
     @Qualifier("servusSpeedRestTemplate")
-    private RestTemplate restTemplate;
+    private final RestTemplate restTemplate;
 
     @Value("${provider.servus.base-url}")
     private String baseUrl;
 
-    @Autowired private ObjectMapper objectMapper;
+    /**
+     * {@link ObjectMapper} instance used for JSON serialization and deserialization.
+     * Automatically injected by Spring.
+     */
+    @Autowired
+    private ObjectMapper objectMapper;
     private static final Logger logger = LoggerFactory.getLogger(ServusSpeedClient.class);
 
-    private static final int MAX_RETRIES = 3;
+    public static final int MAX_RETRIES = 3;
     private static final long RETRY_DELAY_MS = 300;
     static final int PARALLEL = 3;
 
-
-//
-//    @PostConstruct
-//    public void preloadCache() {
-//        List<InternetOffer> offers = List.of(
-//                new InternetOffer("cb41cc8ecc08f2bc", "Servus Basic 50", 50, 12, "DSL", "ServusTV Standard", 100, 30, 2540, false, 0),
-//                new InternetOffer("2e451145abd4bb2b", "Servus Basic 75", 75, 12, "DSL", "ServusTV Standard", 100, 31, 2740, false, 0),
-//                new InternetOffer("95fe97a55dbeffe6", "Servus Basic 100", 100, 12, "DSL", "ServusTV Standard", 100, 31, 2940, false, 0),
-//                new InternetOffer("9973cf0203fda810", "Servus Plus 100", 100, 12, "Cable", "ServusTV Plus", 100, 31, 3140, false, 0),
-//                new InternetOffer("419eae44025d5c2c", "Servus Plus 125", 125, 12, "Cable", "ServusTV Plus", 100, 31, 3340, false, 0),
-//                new InternetOffer("8ecb2ed91a2d8dc3", "Servus Plus 150", 150, 12, "Cable", "ServusTV Plus", 100, 31, 3540, false, 0),
-//                new InternetOffer("a82185d5bbe81d4c", "Servus Premium 150", 150, 24, "Fiber", "ServusFlix Premium", 150, 31, 3740, false, 0),
-//                new InternetOffer("63772dcfba0ed58c", "Servus Premium 175", 175, 24, "Fiber", "ServusFlix Premium", 150, 31, 3940, false, 0),
-//                new InternetOffer("46fcb27acee8eec4", "Servus Premium 200", 200, 24, "Fiber", "ServusFlix Premium", 150, 31, 4140, false, 0),
-//                new InternetOffer("8feca3d260d23013", "Servus Ultra 200", 200, 24, "Fiber", "ServusFlix Pro", 150, 31, 4340, false, 0),
-//                new InternetOffer("e51ed833f573ec81", "Servus Ultra 225", 225, 24, "Fiber", "ServusFlix Pro", 150, 31, 4540, false, 0),
-//                new InternetOffer("8ff69629249d61f3", "Servus Ultra 250", 250, 24, "Fiber", "ServusFlix Pro", 150, 31, 4740, false, 0),
-//                new InternetOffer("04cba41b16902755", "Servus Extreme 300", 300, 36, "Fiber", "ServusFlix Pro Max Ultra", 200, 31, 5040, false, 0),
-//                new InternetOffer("6baacf63e5b97905", "Servus Extreme 350", 350, 36, "Fiber", "ServusFlix Pro Max Ultra", 200, 31, 5340, false, 0),
-//                new InternetOffer("1dd4e520c4653278", "Servus Extreme 400", 400, 36, "Fiber", "ServusFlix Pro Max Ultra", 200, 31, 5640, false, 0)
-//
-//        );
-//        offers.forEach(this::putOfferInCache);
-//    }
-
-
+    /**
+     * Stores an {@link InternetOffer} in the in-memory cache, using its product ID as the key.
+     * This reduces redundant API calls for frequently requested offers.
+     *
+     * <p>Note: While product IDs are (assumed to be) unique identifiers for offers,
+     * different product IDs might sometimes resolve to identical offer details.
+     * Therefore, pre-filling the cache with a full list of product IDs isn't practical,
+     * as it could lead to redundant entries for the same underlying offer.
+     *
+     * @param offer The InternetOffer to cache.
+     */
     public void putOfferInCache(InternetOffer offer) {
         if (offer != null && offer.getProductId() != null) {
             cache.put(offer.getProductId(), offer);
@@ -91,7 +99,9 @@ public class ServusSpeedClient implements OfferController.InternetOfferService {
         }
     }
 
-    private final Map<String, InternetOffer> cache = new ConcurrentHashMap<>();
+    private final Cache<String, InternetOffer> cache = CacheBuilder.newBuilder()
+            .maximumSize(1000)  // Configures the LRU policy: evicts least recently used when size exceeds 1000
+            .build();
 
     /**
      * Fetches the list of available product IDs for a given address.
@@ -111,7 +121,7 @@ public class ServusSpeedClient implements OfferController.InternetOfferService {
                 .put("hausnummer", address.getHausnummer())
                 .put("postleitzahl", address.getPostleitzahl())
                 .put("stadt", address.getStadt())
-                .put("land", "DE");
+                .put("land", address.getLand());    //only DE is supported
 
         ObjectNode requestBody = objectMapper.createObjectNode()
                 .set("address", addressNode);
@@ -122,47 +132,60 @@ public class ServusSpeedClient implements OfferController.InternetOfferService {
 
         HttpEntity<String> requestEntity = new HttpEntity<>(requestBody.toString(), headers);
 
-        try {
-            // Make the POST request using the pre-configured RestTemplate
-            ResponseEntity<JsonNode> response = restTemplate.postForEntity(url, requestEntity, JsonNode.class);
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                // Make the POST request using the pre-configured RestTemplate
+                ResponseEntity<JsonNode> response = restTemplate.postForEntity(url, requestEntity, JsonNode.class);
 
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                // Assuming the response body is a JSON array of strings
-                JsonNode responseBody = response.getBody();
-                if (responseBody.isObject() && response.getBody().has("availableProducts")) {
-                    JsonNode productsArrayNode = responseBody.get("availableProducts");
-                    if (productsArrayNode.isArray()) {
-                        List<String> productIds = StreamSupport.stream(productsArrayNode.spliterator(), false)
-                                .map(JsonNode::asText)
-                                .collect(Collectors.toList());
-                        logger.info("Successfully fetched {} available product IDs.", productIds.size());
-                        logger.debug("Available product IDs: {}", productIds);
-                        return productIds;
+                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                    // Assuming the response body is a JSON array of strings
+                    JsonNode responseBody = response.getBody();
+                    if (responseBody.isObject() && response.getBody().has("availableProducts")) {
+                        JsonNode productsArrayNode = responseBody.get("availableProducts");
+                        if (productsArrayNode.isArray()) {
+                            List<String> productIds = StreamSupport.stream(productsArrayNode.spliterator(), false)
+                                    .map(JsonNode::asText)
+                                    .collect(Collectors.toList());
+                            logger.info("Successfully fetched {} available product IDs.", productIds.size());
+                            logger.debug("Available product IDs: {}", productIds);
+                            return productIds;
+                        } else {
+                            logger.warn("Value of 'availableProducts' is not an array: {}", productsArrayNode.getNodeType());
+                            return Collections.emptyList();
+                        }
                     } else {
-                        logger.warn("Value of 'availableProducts' is not an array: {}", productsArrayNode.getNodeType());
+                        logger.warn("Response body is not an object or does not contain 'availableProducts' field: {}", responseBody.getNodeType());
                         return Collections.emptyList();
                     }
                 } else {
-                    logger.warn("Response body is not an object or does not contain 'availableProducts' field: {}", responseBody.getNodeType());
+                    logger.error("Failed to fetch available product IDs. Status: {} Body: {}", response.getStatusCode(), response.getBody());
                     return Collections.emptyList();
                 }
-            } else {
-                logger.error("Failed to fetch available product IDs. Status: {} Body: {}", response.getStatusCode(), response.getBody());
-                return Collections.emptyList();
+            } catch (HttpClientErrorException e) {
+                logger.error("Client error on attempt {}/{}: {} - {}", attempt, MAX_RETRIES, e.getStatusCode(), e.getResponseBodyAsString());
+                break; // Don't retry on 4xx errors
+            } catch (HttpServerErrorException e) {
+                logger.warn("Server error on attempt {}/{}: {}. Retrying in {}ms...", attempt, MAX_RETRIES, e.getMessage(), RETRY_DELAY_MS);
+            } catch (RestClientException e) {
+                logger.warn("Rest client error on attempt {}/{}: {}. Retrying in {}ms...", attempt, MAX_RETRIES, e.getMessage(), RETRY_DELAY_MS);
+            } catch (Exception e) {
+                logger.error("Unexpected error on attempt {}/{}: {}", attempt, MAX_RETRIES, e.getMessage(), e);
+                break;
             }
-        } catch (HttpClientErrorException e) {
-            logger.error("Client error fetching available product IDs ({}): {}", e.getStatusCode(), e.getResponseBodyAsString());
-            return Collections.emptyList();
-        } catch (HttpServerErrorException e) {
-            logger.error("Server error fetching available product IDs ({}): {}", e.getStatusCode(), e.getResponseBodyAsString());
-            return Collections.emptyList();
-        } catch (RestClientException e) {
-            logger.error("REST client exception fetching available product IDs: {}", e.getMessage());
-            return Collections.emptyList();
-        } catch (Exception e) {
-            logger.error("An unexpected error occurred while fetching available product IDs: {}", e.getMessage(), e);
-            return Collections.emptyList();
+            if (attempt < MAX_RETRIES) {
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    logger.error("Retry sleep interrupted", ie);
+                    break;
+                }
+            } else {
+                logger.error("Retries exhausted while fetching product IDs.");
+            }
         }
+
+        return Collections.emptyList();
     }
 
 
@@ -170,13 +193,12 @@ public class ServusSpeedClient implements OfferController.InternetOfferService {
      * A custom iterable that generates Flux streams for each page of results.
      */
     class OfferLoader implements Iterable<Flux<InternetOffer>> {
-        volatile int idx = 0;
+        private final Queue<String> productIdsQueue = new ConcurrentLinkedQueue<>();
         private final RequestAddress address;
-        private final List<String> productIdsToFetch;
 
         public OfferLoader(RequestAddress address, List<String> productIdsToFetch) {
             this.address = address;
-            this.productIdsToFetch = productIdsToFetch;
+            this.productIdsQueue.addAll(productIdsToFetch);
         }
 
         @Override
@@ -184,12 +206,16 @@ public class ServusSpeedClient implements OfferController.InternetOfferService {
             return new Iterator<Flux<InternetOffer>>() {
                 @Override
                 public boolean hasNext() {
-                    return idx < productIdsToFetch.size();
+                    return !productIdsQueue.isEmpty();
                 }
 
                 @Override
                 public synchronized Flux<InternetOffer> next() {
-                    return fetchProductDetails(OfferLoader.this.productIdsToFetch.get(idx++), OfferLoader.this.address);
+                    String productId = productIdsQueue.poll();
+                    if (productId == null) {
+                        return Flux.empty();
+                    }
+                    return fetchProductDetails(productId, address);
                 }
             };
         }
@@ -225,14 +251,14 @@ public class ServusSpeedClient implements OfferController.InternetOfferService {
                         })
                 .bodyToFlux(DetailedResponseData.class)
                 .timeout(Duration.ofSeconds(50))
-                .retryWhen(Retry.backoff(MAX_RETRIES, Duration.ofMillis(RETRY_DELAY_MS))    //TODO
+                .retryWhen(Retry.backoff(MAX_RETRIES, Duration.ofMillis(RETRY_DELAY_MS))
                         .jitter(0.5)
                         .filter(throwable -> throwable instanceof ReadTimeoutException || (throwable instanceof WebClientResponseException ex && (ex.getStatusCode().is5xxServerError() || ex.getStatusCode().value() == 429)))
                         .doBeforeRetry(retrySignal -> logger.warn("Retrying Product {} due to {}", productId, retrySignal.failure().toString()))
                         .onRetryExhaustedThrow((spec, signal) -> new RuntimeException("Retries exhausted for Offer " + productId, signal.failure()))
                 )
                 .doOnError(error -> logger.error("Error fetching Product {}: {}", productId, error.getMessage()))
-                .map(detailed -> mapToInternetOffer(detailed, productId))
+                .flatMap(detailed -> Mono.justOrEmpty(mapToInternetOffer(detailed, productId)))
                 .doOnNext(offer -> {
                     logger.trace("Mapped offer from id {}: {}", productId, offer);
                     putOfferInCache(offer);
@@ -248,7 +274,11 @@ public class ServusSpeedClient implements OfferController.InternetOfferService {
      */
     @Override
     public Flux<InternetOffer> getOffers(RequestAddress address) {
+        //Servus speed currently only has support for Germany
         Instant startTime = Instant.now();
+        if (!address.getLand().equals("DE")) {
+            return Flux.empty();
+        }
 
         List<String> availableIds = getAvailableProductIds(address);
 
@@ -261,7 +291,7 @@ public class ServusSpeedClient implements OfferController.InternetOfferService {
         List<String> idsToFetch = new ArrayList<>();
 
         for (String id : availableIds) {
-            InternetOffer cached = cache.get(id);
+            InternetOffer cached = cache.getIfPresent(id);
             if (cached != null) {
                 cachedOffers.add(cached);
             } else {
@@ -285,7 +315,16 @@ public class ServusSpeedClient implements OfferController.InternetOfferService {
                 });
     }
 
-
+    /**
+     * Maps a {@link DetailedResponseData} object (representing a raw product detail from ServusSpeed)
+     * to a standardized {@link InternetOffer} domain object.
+     * Includes null checks to ensure that required nested objects and fields are present before mapping.
+     *
+     * @param product The {@link DetailedResponseData} received from the ServusSpeed API.
+     * @param productId The ID of the product being mapped, used to set the {@code productId} in the {@link InternetOffer}.
+     * @return An {@link InternetOffer} object if mapping is successful and all mandatory data is present,
+     * otherwise {@code null} if essential data is missing.
+     */
     private InternetOffer mapToInternetOffer(DetailedResponseData product, String productId) {
 
         if (product == null || product.getServusSpeedProduct() == null || product.getServusSpeedProduct().getProductInfo() == null || product.getServusSpeedProduct().getPricingDetails() == null) {
@@ -294,20 +333,21 @@ public class ServusSpeedClient implements OfferController.InternetOfferService {
         }
         ServusSpeedProduct productDetails = product.getServusSpeedProduct();
 
-        InternetOffer offer =  new InternetOffer(
-                productId,
-                productDetails.getProviderName(),
-                productDetails.getProductInfo().getSpeed(),
-                productDetails.getProductInfo().getContractDurationInMonths(),
-                productDetails.getProductInfo().getConnectionType(),
-                productDetails.getProductInfo().getTv(),
-                productDetails.getProductInfo().getLimitFrom(),
-                productDetails.getProductInfo().getMaxAge(),
-                productDetails.getPricingDetails().getMonthlyCostInCent(),
-                productDetails.getPricingDetails().isInstallationService(),
-                productDetails.getDiscount()
-        );
-        logger.info("InternetOffer created: {}", offer);
-        return offer;
+        // Set to 0 or null if not available from this 'productDetails' source
+        //logger.info("InternetOffer created: {}", offer);
+        return InternetOffer.builder()
+                .productId(productId)
+                .providerName(productDetails.getProviderName())
+                .speed(productDetails.getProductInfo().getSpeed())
+                .monthlyCostInCent(productDetails.getPricingDetails().getMonthlyCostInCent())
+                .afterTwoYearsMonthlyCost(0) // Set to 0 or null if not available from this 'productDetails' source
+                .durationInMonths(productDetails.getProductInfo().getContractDurationInMonths())
+                .connectionType(productDetails.getProductInfo().getConnectionType())
+                .tv(productDetails.getProductInfo().getTv())
+                .limitFrom(productDetails.getProductInfo().getLimitFrom())
+                .maxAge(productDetails.getProductInfo().getMaxAge())
+                .installationService(productDetails.getPricingDetails().isInstallationService())
+                .discount(productDetails.getDiscount())
+                .build();
     }
 }

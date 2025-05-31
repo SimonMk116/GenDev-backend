@@ -14,40 +14,65 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
+/**
+ * Service class responsible for integrating with the "WebWunder" provider to retrieve internet offers.
+ * This service implements the {@link OfferController.InternetOfferService} interface,
+ * utilizing the {@link WebWunderClient} to make SOAP API calls. It orchestrates fetching offers
+ * across various connection types in parallel and transforms the SOAP responses into
+ * a stream of standardized {@link InternetOffer} domain objects.
+ */
 @Service
 public class WebWunderService implements OfferController.InternetOfferService{
 
     private static final Logger logger = LoggerFactory.getLogger(WebWunderService.class);
     private final WebWunderClient webWunderClient;
 
+
     @Autowired
     public WebWunderService(WebWunderClient client) {
         this.webWunderClient = client;
     }
 
-    private Mono<Output> fetchOffersFromWebWunder(RequestAddress address) {
+    /**
+     * Fetches internet offers for a given address and specific connection details from the WebWunder API.
+     * This private helper method encapsulates a single call to the {@link WebWunderClient}.
+     *
+     * @param address The {@link RequestAddress} containing the street, house number, city, postal code, and country.
+     * @param connectionType The specific {@link ConnectionType} (e.g., DSL, CABLE, FIBER, MOBILE) to request offers for.
+     * @param installation A boolean indicating whether offers with installation service should be fetched.
+     * @return A {@link Mono} emitting an {@link Output} object from the WebWunder SOAP response.
+     * If the client returns null or an empty product list, a warning is logged.
+     */
+    private Mono<Output> fetchOffers(RequestAddress address, ConnectionType connectionType, boolean installation) {
         SearchRequests request = new SearchRequests(
                 address.getStrasse(),
                 address.getHausnummer(),
                 address.getStadt(),
-                address.getPostleitzahl()
+                address.getPostleitzahl(),
+                address.getLand()
         );
-        return Mono.fromCallable(() -> webWunderClient.getInternetOffers(request))
+        // Call the WebWunderClient to get offers reactively.
+        return webWunderClient.getInternetOffers(request, connectionType, installation)
                 .doOnNext(output -> {
-                    if (output == null) {
-                        logger.warn("WebWunderClient returned null output for address: {}", address);
-                    } else if (output.getProducts() == null) {
-                        logger.warn("WebWunderClient output.getProducts() returned null for address: {}", address);
+                    if (output == null || output.getProducts() == null) {
+                        logger.warn("WebWunderClient returned null or empty output for address: {}", address);
                     }
-                })
-                .onErrorResume(Exception.class, e -> {
-                    logger.error("Error fetching offers from WebWunder for address: {}", address, e);
-                    return Mono.empty();
                 });
     }
 
-    private InternetOffer mapProductToInternetOffer(Product product) {
+    /**
+     * Maps a single {@link Product} object received from the WebWunder SOAP response
+     * to a standardized {@link InternetOffer} domain object.
+     * This method handles the conversion of various fields, including a specific
+     * mapping for {@link Voucher} types (PercentageVoucher and AbsoluteVoucher).
+     *
+     * @param product The {@link Product} object obtained from the WebWunder SOAP response.
+     * @return An {@link InternetOffer} object populated with details from the product,
+     * or {@code null} if essential {@link ProductInfo} is missing.
+     */
+    private InternetOffer mapToOffer(Product product) {
         ProductInfo info = product.getProductInfo();
 
         if (info == null) {
@@ -62,6 +87,7 @@ public class WebWunderService implements OfferController.InternetOfferService{
         Integer discountInCent = null;
         Integer minOrderValueInCent = null;
 
+        // Handle different types of vouchers using pattern matching for instanceof.
         Voucher voucher = info.getVoucher();
         if (voucher instanceof PercentageVoucher pv) {
             voucherType = "PERCENTAGE";
@@ -73,38 +99,72 @@ public class WebWunderService implements OfferController.InternetOfferService{
             minOrderValueInCent = av.getMinOrderValueInCent();
         }
 
-        return new InternetOffer(
-                String.valueOf(product.getProductId()),
-                product.getProviderName(),
-                product.getProductInfo().getSpeed(),
-                product.getProductInfo().getMonthlyCostInCent(),
-                product.getProductInfo().getMonthlyCostInCentFrom25ThMonth(),
-                product.getProductInfo().getContractDurationInMonths(),
-                product.getProductInfo().getConnectionType().toString(),
-                voucherType,
-                percentage,
-                maxDiscountInCent,
-                discountInCent,
-                minOrderValueInCent
-        );
+        return InternetOffer.builder()
+                .productId(String.valueOf(product.getProductId()))
+                .providerName(product.getProviderName())
+                .speed(product.getProductInfo().getSpeed())
+                .monthlyCostInCent(product.getProductInfo().getMonthlyCostInCent())
+                .afterTwoYearsMonthlyCost(product.getProductInfo().getMonthlyCostInCentFrom25ThMonth())
+                .durationInMonths(product.getProductInfo().getContractDurationInMonths())
+                .connectionType(product.getProductInfo().getConnectionType().toString())
+                .voucherType(voucherType)
+                .percentage(percentage)
+                .maxDiscountInCent(maxDiscountInCent)
+                .discountInCent(discountInCent)
+                .minOrderValueInCent(minOrderValueInCent)
+                .installationService(true)  //all WebWunderOffers have installation service
+                .build();
+
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * This implementation fetches all available internet offers from the WebWunder provider
+     * for the given address across multiple predefined connection types (DSL, CABLE, FIBER, MOBILE).
+     * It initiates parallel requests for each connection type, aggregates the responses,
+     * and maps them to a continuous stream of {@link InternetOffer} objects.
+     * </p>
+     *
+     * @param address The user's {@link RequestAddress} to find offers for.
+     * @return A {@link Flux} stream of {@link InternetOffer} objects, representing
+     * all available offers from the WebWunder provider for the specified address,
+     * aggregated from requests for different connection types. The stream completes
+     * gracefully even if errors occur during individual API calls or mapping.
+     */
     @Override
     public Flux<InternetOffer> getOffers(RequestAddress address) {
-        Instant overallStartTime = Instant.now();
-        return fetchOffersFromWebWunder(address)
-                .flatMapMany(output -> {
+        Instant start = Instant.now();
+
+        List<ConnectionType> connectionTypes = List.of(
+                ConnectionType.DSL,
+                ConnectionType.CABLE,
+                ConnectionType.FIBER,
+                ConnectionType.MOBILE
+        );
+
+        boolean installation = true;    //all WebWunderOffers have installation service
+
+        // Create a Flux of Mono<Output> for each connection type
+        Flux<Mono<Output>> offerMonos = Flux.fromIterable(connectionTypes)
+                .map(connectionType -> fetchOffers(address, connectionType, installation));
+
+        return Flux.merge(offerMonos)
+                .flatMap(output -> {
+                    // Process the output from each successful request
                     if (output != null && output.getProducts() != null) {
                         return Flux.fromIterable(output.getProducts())
-                                .mapNotNull(this::mapProductToInternetOffer);
+                                .mapNotNull(this::mapToOffer);
                     }
-                    return Flux.empty();
+                    return Flux.empty(); // If output is null or products are null, return empty Flux
                 })
-                .doOnComplete(() -> logger.info("WebWunderService took {}", Duration.between(overallStartTime, Instant.now()).toMillis()))
+                .doOnComplete(() -> {
+                    long duration = Duration.between(start, Instant.now()).toMillis();
+                    logger.info("WebWunderService finished fetching all parallel offers for address: {} in {} ms", address, duration);
+                })
                 .onErrorResume(Exception.class, e -> {
-                    logger.error("Error processing WebWunder offers for address: {} ms", address, e);
-                    return Flux.empty();
+                    logger.error("An unexpected error occurred during parallel WebWunder offer fetching for address: {}", address, e);
+                    return Flux.empty(); // Ensure the stream completes gracefully even if an error occurs
                 });
     }
-
 }

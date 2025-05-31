@@ -1,1 +1,6 @@
-/home/user/GenDev-backend/src/test/java/com/example/demo/DemoApplicationTests.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/test/java/com/SimonMk116/gendev/controller/OfferControllerTests.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/test/java/com/SimonMk116/gendev/service/ByteMeServiceTest.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/test/java/com/SimonMk116/gendev/service/PingPerfectClientTest.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/test/java/com/SimonMk116/gendev/service/PingPerfectServiceTest.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/test/java/com/SimonMk116/gendev/service/ServusSpeedClientRestTest.java
+/home/simonmk/Documents/GenDev/check24-comparison-challenge/check24-isp-compare/backend/src/test/java/com/SimonMk116/gendev/service/ServusSpeedClientWebClientTest.java
