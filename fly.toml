@@ -18,8 +18,8 @@ primary_region = 'fra'
   processes = ['app']
 
 [[http_service.checks]]
-  grace_period = "60s" 
-  interval = "60s"
+  grace_period = "20s" 
+  interval = "615s"
   method = "GET"
   path = "/actuator/health/liveness" # Ensure this path is correct and your Actuator is enabled.
   timeout = "5s"
@@ -34,4 +34,3 @@ primary_region = 'fra'
   memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 1024
