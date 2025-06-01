@@ -17,13 +17,13 @@ primary_region = 'fra'
   min_machines_running = 1
   processes = ['app']
 
-#[[http_service.checks]]
-#  grace_period = "60s" 
-#  interval = "60s"
-#  method = "GET"
-#  path = "/actuator/health/liveness" # Ensure this path is correct and your Actuator is enabled.
-#  timeout = "5s"
-#  protocol = "http"
+[[http_service.checks]]
+  grace_period = "60s" 
+  interval = "60s"
+  method = "GET"
+  path = "/actuator/health/liveness" # Ensure this path is correct and your Actuator is enabled.
+  timeout = "5s"
+  protocol = "http"
 
 [env]
   SPRING_PROFILES_ACTIVE = "production"
