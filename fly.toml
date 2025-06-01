@@ -19,7 +19,7 @@ primary_region = 'fra'
 
 [[http_service.checks]]
   grace_period = "20s" 
-  interval = "615s"
+  interval = "15s"
   method = "GET"
   path = "/actuator/health/liveness" # Ensure this path is correct and your Actuator is enabled.
   timeout = "5s"
