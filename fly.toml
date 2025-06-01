@@ -29,7 +29,6 @@ primary_region = 'fra'
   SPRING_PROFILES_ACTIVE = "production"
   LOG_LEVEL = "INFO"
   JAVA_OPTS = "-Xmx768m -Xms256m -XX:+UseG1GC"
-  SERVER_ADDRESS = "0.0.0.0"
 
 [[vm]]
   memory = '1gb'
