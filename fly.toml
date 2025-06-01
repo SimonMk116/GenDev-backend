@@ -11,7 +11,7 @@ kill_timeout = 120       # Give your app up to 60 seconds to shut down gracefull
 
 
 [build]
-  dockerfile = "Dockerfile"
+  @@ -16,34 +16,39 @@ kill_timeout = 60 # Give your app up to 60 seconds to shut down gracefully
 
 
 [deploy]
@@ -19,7 +19,7 @@ kill_timeout = 120       # Give your app up to 60 seconds to shut down gracefull
   # For Spring Boot, migrations are often handled by Flyway/Liquibase on startup,
   # so a separate release_command not needed.
   # release_command = "java -jar /path/to/your/migration/tool.jar"
-  wait_timeout = "10m"
+  wait_timeout = "5m"
 
 
 [env]
@@ -45,7 +45,7 @@ kill_timeout = 120       # Give your app up to 60 seconds to shut down gracefull
     hard_limit = 250 # Stop sending new requests at this limit
 
   [[http_service.checks]]
-    grace_period = "60s" # Spring Boot start up
+    grace_period = "45s" # Spring Boot start up
     interval = "10s" # How often Fly.io will check your app's health.
     method = "GET"
     path = "/actuator/health/liveness"
