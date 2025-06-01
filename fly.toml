@@ -9,12 +9,10 @@ primary_region = "fra" # Frankfurt, Germany - good choice for a central European
 kill_signal = "SIGTERM" # Use SIGTERM for a graceful shutdown
 kill_timeout = 60       # Give your app up to 60 seconds to shut down gracefully
 
----
 
 [build]
   dockerfile = "Dockerfile"
 
----
 
 [deploy]
   strategy = "bluegreen"
@@ -22,13 +20,11 @@ kill_timeout = 60       # Give your app up to 60 seconds to shut down gracefully
   # release_command = "./bin/rails db:migrate"    # Example for Ruby/Rails migrations
   # wait_timeout = "5m" # Default is 5m, increase if deploys time out often
 
----
 
 [env]
   ENVIRONMENT = "production"
   LOG_LEVEL = "info"
 
----
 
 [http_service]
   internal_port = 8080
@@ -51,7 +47,6 @@ kill_timeout = 60       # Give your app up to 60 seconds to shut down gracefully
     timeout = "5s"
     protocol = "http"
 
----
 
 [[vm]]
   cpu_kind = "shared"
