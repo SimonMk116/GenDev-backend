@@ -25,6 +25,11 @@ primary_region = 'fra'
   timeout = "5s"
   protocol = "http"
 
+[[restart]]
+  policy = "always"
+  retries = 10
+  processes = ["app"]
+
 [env]
   SPRING_PROFILES_ACTIVE = "production"
   LOG_LEVEL = "INFO"
