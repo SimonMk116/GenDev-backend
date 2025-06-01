@@ -265,7 +265,7 @@ To run the backend application, ensure you have the necessary environment config
 
     # General Application Settings
     spring.application.name=gendev
-    server.port=3001
+    server.port=8080
     server.forward-headers-strategy=NATIVE # Important for proxy environments (e.g., Cloud Workstations)
 
     # CORS Configuration for Frontend Integration
