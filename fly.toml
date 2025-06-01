@@ -7,7 +7,7 @@ app = "gendev-backend"
 primary_region = "fra" # Frankfurt, Germany - good choice for a central European location
 
 kill_signal = "SIGTERM" # Use SIGTERM for a graceful shutdown
-kill_timeout = 60       # Give your app up to 60 seconds to shut down gracefully
+kill_timeout = 120       # Give your app up to 60 seconds to shut down gracefully
 
 
 [build]
@@ -16,34 +16,39 @@ kill_timeout = 60       # Give your app up to 60 seconds to shut down gracefully
 
 [deploy]
   strategy = "bluegreen"
-  # release_command = "python manage.py migrate" # Example for Python/Django migrations
-  # release_command = "./bin/rails db:migrate"    # Example for Ruby/Rails migrations
-  # wait_timeout = "5m" # Default is 5m, increase if deploys time out often
+  # For Spring Boot, migrations are often handled by Flyway/Liquibase on startup,
+  # so a separate release_command not needed.
+  # release_command = "java -jar /path/to/your/migration/tool.jar"
+  wait_timeout = "5m"
 
 
 [env]
   ENVIRONMENT = "production"
   LOG_LEVEL = "info"
+  #general-purpose garbage collector.
+  JAVA_OPTS = "-Xmx768m -Xms256m -XX:+UseG1GC"
 
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_start_machines = true # Still useful if a machine stops unexpectedly or needs replacing
-  auto_stop_machines = "off" # <--- IMPORTANT: Disable auto-stopping
-  min_machines_running = 1   # <--- IMPORTANT: Ensure at least one machine is always running
+  auto_start_machines = true
+  auto_stop_machines = "off" # Disable auto-stopping
+  min_machines_running = 1   # Ensure at least one machine is always running
   processes = [ "app" ]
 
+  # Concurrency settings for load balancing and scaling.
+  # "requests" is appropriate for HTTP-based Spring Boot services.
   [http_service.concurrency]
     type = "requests"
-    soft_limit = 200
-    hard_limit = 250
+    soft_limit = 200 # Adjust based on your Spring Boot app's capacity and thread pool
+    hard_limit = 250 # Stop sending new requests at this limit
 
   [[http_service.checks]]
-    grace_period = "15s"
-    interval = "10s"
+    grace_period = "45s" # Spring Boot start up
+    interval = "10s" # How often Fly.io will check your app's health.
     method = "GET"
-    path = "/healthz"
+    path = "/actuator/health/liveness"
     timeout = "5s"
     protocol = "http"
 
